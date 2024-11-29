@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from chemvae_train.models import Encoder, Decoder, VAEAutoEncoder
+from chemvae_train.models import VAEAutoEncoder
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
 from chemvae_train.models_utils import kl_loss, WeightAnnealer, sigmoid_schedule, GPUUsageLogger
 

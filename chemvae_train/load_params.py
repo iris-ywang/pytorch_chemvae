@@ -84,9 +84,9 @@ class ChemVAETrainingParams:
     n_gpu: int = 1
 
     # files
-    data_file: str = None
-    encoder_weights_file: str = None
-    decoder_weights_file: str = None
+    directory: str = None  # parent directory for all files
+    data_file: str = None  # data file name/path
+    vae_weights_file: str = None  # model weights file name/path
     test_idx_file: str = None
     history_file: str = None
     checkpoint_path: str = None
@@ -113,7 +113,7 @@ def load_params(param_file=None, verbose=True):
     return training_params
 
     # temporary renaming
-    # parameters[" "] = parameters["batch_size"]
-    # parameters["loop_over_fit_batch_size"] = parameters["training_batch_size"]
+    # parameters["model_fit_batch_size"] = parameters["batch_size"]
+    # parameters["loop_over_fit_batch_size"] = parameters["training_batch_size"]  # subset data for training per training run
     # parameters["loop_over_fit_batch_id"] = parameters["batch_id"]
     # parameters["data_size_for_all_loops"] = parameters["data_size"]
