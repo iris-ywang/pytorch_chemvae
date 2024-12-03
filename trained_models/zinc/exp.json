@@ -1,12 +1,12 @@
 {
   "name": "zinc",
   "MAX_LEN": 120,
-  "data_file": "../models/zinc/250k_rndm_zinc_drugs_clean_3.csv",
-  "char_file": "../models/zinc/zinc.json",
-  "encoder_weights_file": "../models/zinc/zinc_encoder_iris2.h5",
-  "decoder_weights_file": "../models/zinc/zinc_decoder_iris2.h5",
-  "test_idx_file": "../models/zinc/test_idx.npy",
-  "history_file": "../models/zinc/history.csv",
+  "data_file": "./trained_models/zinc/250k_rndm_zinc_drugs_clean_3.csv",
+  "char_file": "./trained_models/zinc/zinc.json",
+  "encoder_weights_file": "./trained_models/zinc/zinc_encoder_iris2.h5",
+  "decoder_weights_file": "./trained_models/zinc/zinc_decoder_iris2.h5",
+  "test_idx_file": "./trained_models/zinc/test_idx.npy",
+  "history_file": "./trained_models/zinc/history.csv",
   "checkpoint_path": "./",
   "do_prop_pred": false,
   "TRAIN_MODEL": true,
@@ -18,7 +18,6 @@
   "dropout_rate_mid": 0.082832929704794792,
   "anneal_sigmod_slope": 0.51066543057913916,
   "recurrent_dim": 488,
-  "batch_size": 126,
   "lr": 0.00039192162392520126,
   "hidden_dim": 196,
   "tgru_dropout": 0.19617749608323892,
@@ -27,7 +26,8 @@
   "momentum": 0.97170900638688007,
   "reload_model": false,
   "paired_output": false,
-  "data_size": 201600,
-  "training_batch_size": 12600,
-  "batch_id": 1
+  "data_size_for_all_loops": 201600,
+  "loop_over_fit_batch_size": 126,
+  "loop_over_fit_batch_id": 1,
+  "model_fit_batch_size": 126
 }

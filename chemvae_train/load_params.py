@@ -15,6 +15,7 @@ class ChemVAETrainingParams:
     loop_over_fit_batch_id: int = None
     paired_output: bool = False  # whether to use paired output for the decoder
     RAND_SEED: int = None
+    PADDING: str = "right"
 
     # for starting model from a checkpoint
     reload_model: bool = False

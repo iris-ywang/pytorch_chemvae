@@ -13,8 +13,8 @@ from mol_utils import mol_utils as mu
 
 @dataclass
 class DataPreprocessor:
-    X_train_all: np.array
-    X_test_all: np.array
+    X_train_all: np.array = None
+    X_test_all: np.array = None
 
     def vectorize_data_chembl(self, params: ChemVAETrainingParams):
         # For Morgan FP, MAX_LEN = 1024.
@@ -83,8 +83,7 @@ class DataPreprocessor:
         logging.info(f'total chars: {NCHARS}')
 
         logging.info('Vectorization...')
-        X = mu.smiles_to_hot(smiles, MAX_LEN, params[
-                                 'PADDING'], CHAR_INDICES, NCHARS)
+        X = mu.smiles_to_hot(smiles, MAX_LEN, params.PADDING, CHAR_INDICES, NCHARS)
 
         logging.info(f'Total Data size {X.shape[0]}')
         if np.shape(X)[0] % params.model_fit_batch_size != 0:

@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from functools import partial
 
+import numpy as np
 import torch
 import logging
 from torch import nn
@@ -12,8 +13,12 @@ from chemvae_train.models_utils import kl_loss, WeightAnnealer, sigmoid_schedule
 from chemvae_train.data_utils import DataPreprocessor
 
 
-def load_data(model_fit_batch_size: int, X_train):
+def load_data(model_fit_batch_size: int, X_train: np.array):
     """Load the data for the model fit training process."""
+
+    # Swap 2nd and 3rd axis to match the input shape of the model
+    X_train = np.swapaxes(X_train, 1, 2)
+
     train_loader = torch.utils.data.DataLoader(
         X_train,
         batch_size=model_fit_batch_size,
@@ -26,11 +31,11 @@ def load_data(model_fit_batch_size: int, X_train):
 def load_optimiser(params: ChemVAETrainingParams):
     """Load the optimizer for the training process. Returns a partial function with the learning rate set."""
     if params.optim == "adam":
-        optimizer = partial(torch.optim.Adam(), lr=params.lr)
+        optimizer = partial(torch.optim.Adam, lr=params.lr)
     elif params.optim == "rmsprop":
-        optimizer = partial(torch.optim.RMSprop(), lr=params.lr, rho=params.momentum)
+        optimizer = partial(torch.optim.RMSprop, lr=params.lr, rho=params.momentum)
     elif params.optim == "sgd":
-        optimizer = partial(torch.optim.SGD(), lr=params.lr, momentum=params.momentum)
+        optimizer = partial(torch.optim.SGD, lr=params.lr, momentum=params.momentum)
     else:
         raise NotImplemented("Please define valid optimizer")
     return optimizer
@@ -66,19 +71,19 @@ def train(params: ChemVAETrainingParams):
     X_train_all, X_test_all = data_preprocessor.vectorize_data(params)
 
     chunk_size_per_loop, n_chunks, chunk_start_id = \
-        data_preprocessor.get_model_fit_chunk_size_and_starting_chunk_id(params, X_train_all)
+        data_preprocessor.get_model_fit_chunk_size_and_starting_chunk_id(params)
 
     for batch_id in range(chunk_start_id, n_chunks):
         logging.info(f"Training batch id over model fit func: {batch_id} out of {n_chunks}")
 
         # load chunk size data
         X_train_chunk, X_test_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
-            if_paired=params.if_paired,
+            if_paired=params.paired_output,
             current_chunk_id=batch_id,
             n_chunks=n_chunks,
             chunk_size=chunk_size_per_loop,
         )
-        train_loader = load_data(model_fit_batch_size=params.training_batch_size, X_train=X_train_chunk)
+        train_loader = load_data(model_fit_batch_size=params.loop_over_fit_batch_size, X_train=X_train_chunk)
 
         # set up training model
         autoencoder_model = load_model(params)
@@ -135,12 +140,17 @@ if __name__ == '__main__':
     #                     help="exp directory", default=None)
     # args = vars(parser.parse_args())
 
-    args = {"exp_file": "../models/zinc/exp.json", "directory": None}
+    # config logging to be compatible with the pytorch
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logging.info("Logging started")
 
-    if args.directory is not None:
-        args.exp_file = os.path.join(args.directory, args.exp_file)
+    current_dir = os.getcwd()
+    args = {"exp_file": "./trained_models/zinc/exp.json", "directory": current_dir}
 
-    training_params = load_params(args.exp_file)
+    if args["directory"] is not None:
+        args['exp_file'] = os.path.join(args["directory"], args['exp_file'])
+
+    training_params = load_params(args['exp_file'])
 
     # train the model
     losses, outputs = train(training_params)
