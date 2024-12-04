@@ -1,3 +1,4 @@
+import csv
 import os
 from datetime import datetime
 from functools import partial
@@ -9,15 +10,16 @@ from torch import nn
 
 from chemvae_train.models import VAEAutoEncoder
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
-from chemvae_train.models_utils import kl_loss, WeightAnnealer, sigmoid_schedule, GPUUsageLogger
+from chemvae_train.models_utils import kl_loss, WeightAnnealer, sigmoid_schedule, GPUUsageLogger, categorical_accuracy
 from chemvae_train.data_utils import DataPreprocessor
 
 
-def load_data(model_fit_batch_size: int, X_train: np.array):
+def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     """Load the data for the model fit training process."""
 
     # Swap 2nd and 3rd axis to match the input shape of the model
     X_train = np.swapaxes(X_train, 1, 2)
+    X_test = np.swapaxes(X_test, 1, 2)
 
     train_loader = torch.utils.data.DataLoader(
         X_train,
@@ -25,7 +27,14 @@ def load_data(model_fit_batch_size: int, X_train: np.array):
         shuffle=False,
         num_workers=2,
     )
-    return train_loader
+
+    test_loader = torch.utils.data.DataLoader(
+        X_test,
+        batch_size=model_fit_batch_size,
+        shuffle=False,
+        num_workers=2,
+    )
+    return train_loader, test_loader
 
 
 def load_optimiser(params: ChemVAETrainingParams):
@@ -73,24 +82,26 @@ def train(params: ChemVAETrainingParams):
     chunk_size_per_loop, n_chunks, chunk_start_id = \
         data_preprocessor.get_model_fit_chunk_size_and_starting_chunk_id(params)
 
-    for batch_id in range(chunk_start_id, n_chunks):
-        logging.info(f"Training batch id over model fit func: {batch_id} out of {n_chunks}")
+    for chunk_id in range(chunk_start_id, n_chunks):
+        logging.info(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
 
         # load chunk size data
         X_train_chunk, X_test_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
             if_paired=params.paired_output,
-            current_chunk_id=batch_id,
+            current_chunk_id=chunk_id,
             n_chunks=n_chunks,
             chunk_size=chunk_size_per_loop,
         )
-        train_loader = load_data(model_fit_batch_size=params.loop_over_fit_batch_size, X_train=X_train_chunk)
+        train_loader, test_loader = load_data(
+            model_fit_batch_size=params.loop_over_fit_batch_size,
+            X_train=X_train_chunk,
+            X_test=X_test_chunk
+        )
 
         # set up training model
         autoencoder_model = load_model(params)
 
         # compile the autoencoder model
-        ## loss function of the autoencoder model is set to 'categorical_crossentropy'.
-        # Use the Pytorch loss for categorical_crossentropy:
         loss_function = nn.CrossEntropyLoss()
         optimizer = load_optimiser(params)(autoencoder_model.parameters())
 
@@ -104,16 +115,19 @@ def train(params: ChemVAETrainingParams):
         )
         gpu_logger = GPUUsageLogger(print_every=50)
 
-        outputs = []
-        losses = []
+        train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "categorical_accuracy": []}
+        num_train_samples = len(train_loader.dataset)
+
         for epoch in range(params.epochs):
+            weight_annealer.on_epoch_begin(epoch)
+
             # for loop over train_loader with both ith batch_idx and ith X data
             for batch_idx, X in enumerate(train_loader):
-                weight_annealer.on_epoch_begin(epoch)
 
                 optimizer.zero_grad()
-                x_pred, z_mean_log_var = autoencoder_model(torch.tensor(X))
-                recon_loss = loss_function(x_pred, torch.tensor(X))
+                x_true = torch.tensor(X)
+                x_pred, z_mean_log_var = autoencoder_model(x_true)
+                recon_loss = loss_function(x_pred, x_true)
                 kl_div = kl_loss(z_mean_log_var)
 
                 total_loss = recon_loss + kl_div
@@ -122,11 +136,69 @@ def train(params: ChemVAETrainingParams):
 
                 gpu_logger.on_batch_end(batch_idx)
 
-            losses.append(total_loss)
-            outputs.append((epoch, X, x_pred,))
+                # Accumulate losses
+                train_results["loss"].append(total_loss.item() * len(X))  # Scaled by batch size
+                train_results["x_pred_loss"].append(recon_loss.item() * len(X))
+                train_results["kl_loss"].append(kl_div.item() * len(X))
+                train_results["categorical_accuracy"].append(categorical_accuracy(x_pred, x_true))
 
-        logging.info(f"Training batch id {batch_id} completed. Saving model weights.")
-        save_model(params, autoencoder_model, batch_id, chunk_size_per_loop)
+            # Compute epoch-level losses (mean per sample)
+            train_loss = sum(train_results["loss"]) / num_train_samples
+            train_x_pred_loss = sum(train_results["x_pred_loss"]) / num_train_samples
+            train_kl_loss = sum(train_results["kl_loss"]) / num_train_samples
+            train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
+
+
+            if params.history_file is not None:
+
+                # Validation step
+                autoencoder_model.eval()  # Set model to evaluation mode
+                val_results = {
+                    "val_loss": [], "val_x_pred_loss": [], "val_kl_loss": [], "val_categorical_accuracy": []
+                }
+                num_val_samples = len(test_loader.dataset)
+
+                with torch.no_grad():  # Disable gradient computation for validation
+                    for x_batch in test_loader:
+                        x_pred_val, z_mean_log_var_val = autoencoder_model(x_batch)
+                        recon_loss_val = loss_function(x_pred_val, torch.tensor(x_batch))
+                        kl_div_val = kl_loss(z_mean_log_var_val)
+                        total_loss_val = recon_loss_val + kl_div_val
+
+                        # Accumulate losses
+                        val_results["val_loss"].append(total_loss_val.item() * len(x_batch))
+                        val_results["val_x_pred_loss"].append(recon_loss_val.item() * len(x_batch))
+                        val_results["val_kl_loss"].append(kl_div_val.item() * len(x_batch))
+                        val_results["val_categorical_accuracy"].append(categorical_accuracy(x_pred_val, x_batch))
+
+                # Compute epoch-level validation losses
+                val_loss = sum(val_results["val_loss"]) / num_val_samples
+                val_x_pred_loss = sum(val_results["val_x_pred_loss"]) / num_val_samples
+                val_kl_loss = sum(val_results["val_kl_loss"]) / num_val_samples
+                val_accuracy = sum(val_results["val_categorical_accuracy"]) / len(val_results["val_categorical_accuracy"])
+
+                # Prepare data to be logged in history csv file
+                epoch_results = {
+                    "epoch": epoch,
+                    "loss": train_loss,
+                    "val_loss": val_loss,
+                    "val_x_pred_loss": val_x_pred_loss,
+                    "val_kl_loss": val_kl_loss,
+                    "val_categorical_accuracy": val_accuracy,
+                    "annuealer_weight": weight_annealer.weight_var,
+                    "x_pred_loss": train_x_pred_loss,
+                    "kl_loss": train_kl_loss,
+                    "categorical_accuracy": train_accuracy,
+                }
+
+                with open("training_log.csv", "a") as f:
+                    writer = csv.DictWriter(f, fieldnames=epoch_results.keys())
+                    if epoch == 0:  # Write header only for the first epoch
+                        writer.writeheader()
+                    writer.writerow(epoch_results)
+
+        logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
+        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop)
 
     return losses, outputs
 

@@ -32,6 +32,20 @@ def kl_loss(z_mean_log_var):
     return kl_divergence
 
 
+def categorical_accuracy(y_pred, y_true):
+    """
+    Computes categorical accuracy.
+    :param y_pred: Predicted probabilities or logits (batch_size, num_classes)
+    :param y_true: True labels (batch_size)
+    :return: Accuracy value
+    """
+    y_pred_classes = torch.argmax(y_pred, dim=-2)
+    y_true_classes = torch.argmax(y_true, dim=-2)
+    # Get class predictions
+    correct = (y_pred_classes == y_true_classes).float()  # Compare with true labels
+    return correct.mean().item()  # Average accuracy
+
+
 class WeightAnnealer:
     def __init__(self, schedule, weight_var, weight_orig, weight_name="vae"):
         """
