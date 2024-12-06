@@ -27,7 +27,7 @@
   "reload_model": false,
   "paired_output": false,
   "data_size_for_all_loops": 201600,
-  "loop_over_fit_batch_size": 126,
+  "loop_over_fit_batch_size": 12600,
   "loop_over_fit_batch_id": 1,
   "model_fit_batch_size": 126
 }
