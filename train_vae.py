@@ -93,7 +93,7 @@ def train(params: ChemVAETrainingParams):
             chunk_size=chunk_size_per_loop,
         )
         train_loader, test_loader = load_data(
-            model_fit_batch_size=params.loop_over_fit_batch_size,
+            model_fit_batch_size=params.model_fit_batch_size,
             X_train=X_train_chunk,
             X_test=X_test_chunk
         )
