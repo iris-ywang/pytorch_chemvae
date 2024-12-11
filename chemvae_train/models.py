@@ -504,7 +504,7 @@ class Decoder(nn.Module):
 
 
 def variational_layers(z_mean, z_log_var):
-    epsilon = torch.randn(z_mean.size())
+    epsilon = torch.randn(z_mean.size(), device=z_mean.device) 
     z_rand = z_mean + torch.exp(z_log_var / 2) * epsilon
     return z_rand
 

@@ -55,6 +55,7 @@ def load_model(params: ChemVAETrainingParams):
     autoencoder_model = VAEAutoEncoder(params)
 
     if params.reload_model:
+        logging.info(f"Loading data from {params.vae_weights_file}")
         autoencoder_model.load_state_dict(torch.load(params.vae_weights_file))
         
     return autoencoder_model
@@ -75,13 +76,34 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop):
 
 
 def train(params: ChemVAETrainingParams):
+    """Train the ChemVAE model, the full workflow."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Load data
     data_preprocessor = DataPreprocessor()
-    X_train_all, X_test_all = data_preprocessor.vectorize_data(params)
+    data_preprocessor.vectorize_data(params)
 
     chunk_size_per_loop, n_chunks, chunk_start_id = \
         data_preprocessor.get_model_fit_chunk_size_and_starting_chunk_id(params)
 
+    # set up training model
+    autoencoder_model = load_model(params).to(device)
+
+    # compile the autoencoder model
+    loss_function = nn.CrossEntropyLoss()
+    optimizer = load_optimiser(params)(autoencoder_model.parameters())
+
+    # set up callbacks
+    # Initialize the annealer
+    kl_weight = 1.0  # Initial weight for KL loss
+    weight_annealer = WeightAnnealer(
+        schedule=lambda epoch: sigmoid_schedule(epoch, slope=1.0, start=10),
+        weight_var=kl_weight,
+        weight_orig=1.0
+    )
+    gpu_logger = GPUUsageLogger(print_every=50)
+
+    # ##
+    # Training loop - chunk by chunk
     for chunk_id in range(chunk_start_id, n_chunks):
         logging.info(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
 
@@ -98,23 +120,6 @@ def train(params: ChemVAETrainingParams):
             X_test=X_test_chunk
         )
 
-        # set up training model
-        autoencoder_model = load_model(params)
-
-        # compile the autoencoder model
-        loss_function = nn.CrossEntropyLoss()
-        optimizer = load_optimiser(params)(autoencoder_model.parameters())
-
-        # set up callbacks
-        # Initialize the annealer
-        kl_weight = 1.0  # Initial weight for KL loss
-        weight_annealer = WeightAnnealer(
-            schedule=lambda epoch: sigmoid_schedule(epoch, slope=1.0, start=10),
-            weight_var=kl_weight,
-            weight_orig=1.0
-        )
-        gpu_logger = GPUUsageLogger(print_every=50)
-
         train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "categorical_accuracy": []}
         num_train_samples = len(train_loader.dataset)
 
@@ -123,9 +128,9 @@ def train(params: ChemVAETrainingParams):
 
             # for loop over train_loader with both ith batch_idx and ith X data
             for batch_idx, X in enumerate(train_loader):
-
+                autoencoder_model.train()
                 optimizer.zero_grad()
-                x_true = torch.tensor(X)
+                x_true = X.to(device)
                 x_pred, z_mean_log_var = autoencoder_model(x_true)
                 recon_loss = loss_function(x_pred, x_true)
                 kl_div = kl_loss(z_mean_log_var)
@@ -160,6 +165,7 @@ def train(params: ChemVAETrainingParams):
 
                 with torch.no_grad():  # Disable gradient computation for validation
                     for x_batch in test_loader:
+                        x_batch = x_batch.to(device)
                         x_pred_val, z_mean_log_var_val = autoencoder_model(x_batch)
                         recon_loss_val = loss_function(x_pred_val, torch.tensor(x_batch))
                         kl_div_val = kl_loss(z_mean_log_var_val)
@@ -213,8 +219,10 @@ if __name__ == '__main__':
     # args = vars(parser.parse_args())
 
     # config logging to be compatible with the pytorch
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    logging.info("Logging started")
+    logging.basicConfig(
+        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logging.info("Logging started.")
 
     current_dir = os.getcwd()
     args = {"exp_file": "./trained_models/zinc/exp.json", "directory": current_dir}
