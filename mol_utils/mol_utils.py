@@ -160,7 +160,7 @@ def load_smiles_and_data_df(data_file, max_len, reg_tasks=None, logit_tasks=None
     # Load regression tasks
     if len(reg_tasks) != 0 and normalize_out is not None:
         df_norm = pd.DataFrame(reg_data_df.mean(axis=0), columns=['mean'])
-        df_norm['std'] = reg_data_df.std(axis=0)
+        df_norm['std'] = reg_data_df.Z_std(axis=0)
         reg_data_df = (reg_data_df - df_norm['mean']) / df_norm['std']
         df_norm.to_csv(normalize_out)
 

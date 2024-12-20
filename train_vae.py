@@ -8,9 +8,15 @@ import torch
 import logging
 from torch import nn
 
-from chemvae_train.models import VAEAutoEncoder
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
-from chemvae_train.models_utils import kl_loss, WeightAnnealer, sigmoid_schedule, GPUUsageLogger, categorical_accuracy
+from chemvae_train.models_utils import (
+    kl_loss,
+    WeightAnnealer,
+    sigmoid_schedule,
+    GPUUsageLogger,
+    categorical_accuracy,
+    load_model,
+)
 from chemvae_train.data_utils import DataPreprocessor
 
 
@@ -48,17 +54,6 @@ def load_optimiser(params: ChemVAETrainingParams):
     else:
         raise NotImplemented("Please define valid optimizer")
     return optimizer
-
-
-def load_model(params: ChemVAETrainingParams):
-    """Load the model for the training process."""
-    autoencoder_model = VAEAutoEncoder(params)
-
-    if params.reload_model:
-        logging.info(f"Loading data from {params.vae_weights_file}")
-        autoencoder_model.load_state_dict(torch.load(params.vae_weights_file))
-        
-    return autoencoder_model
 
 
 def save_model(params, vae_model, batch_id, batch_size_per_loop):
@@ -228,7 +223,7 @@ if __name__ == '__main__':
     args = {"exp_file": "./trained_models/zinc/exp.json", "directory": current_dir}
 
     if args["directory"] is not None:
-        args['exp_file'] = os.path.join(args["directory"], args['exp_file'])
+        os.chdir(args["directory"])  # change to the directory where the experiment file is located
 
     training_params = load_params(args['exp_file'])
 

@@ -33,6 +33,7 @@ class VAEUtils(object):
     Z_mu: np.array
     Z_std: np.array
     Z_unstandardised: np.array
+    x_pred: np.array
 
     def __init__(
             self,
@@ -89,8 +90,13 @@ class VAEUtils(object):
 
         if test_idx_file is not None:
             self.test_idxs = np.load(test_idx_file).astype(int)
+            logging.info("Loaded text index file from given file name.")
         else:
-            self.test_idxs = None
+            try:
+                self.test_idxs = np.load(self.params.test_idx_file).astype(int)
+                logging.info("Loaded text index file from params file.")
+            except FileNotFoundError:
+                self.test_idxs = None
 
         self.estimate_estandarization(self.test_idxs)
 
@@ -100,6 +106,7 @@ class VAEUtils(object):
 
         # Load test set for encoding
         if test_idxs is None:
+            logging.info("Encoding latent rep for random molecules from all data...")
             smiles = self.random_molecules(size=50000)
         else:
             print("Encoding latent rep for test set...")
@@ -141,6 +148,8 @@ class VAEUtils(object):
         self.Z_mu = np.mean(Z, axis=0)
         self.Z_std = np.std(Z, axis=0)
         self.Z_unstandardised = Z
+        self.x_pred = x_pred
+
         logging.info("Standardizing latent rep...")
         self.Z = self.standardize_z(Z)
 

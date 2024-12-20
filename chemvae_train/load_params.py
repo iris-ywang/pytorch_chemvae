@@ -9,8 +9,8 @@ class ChemVAETrainingParams:
 
     # data parameters
     data_size_for_all_loops: int = None   # number of molecules in the dataset
-    data_width: int = 120
-    data_height: int = 35
+    data_width: int = 120  # previous name: MAX_LEN
+    data_height: int = 35  # previous name: NCHARS
     loop_over_fit_batch_size: int = 1260
     loop_over_fit_batch_id: int = None
     paired_output: bool = False  # whether to use paired output for the decoder
@@ -92,6 +92,7 @@ class ChemVAETrainingParams:
     history_file: str = None
     checkpoint_path: str = None
     limit_data: int = None
+    char_file: str = None
 
 
 def load_params(param_file=None, verbose=True):
