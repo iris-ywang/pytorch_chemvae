@@ -9,13 +9,13 @@ import logging
 from torch import nn
 
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
+from chemvae_train.models import VAEAutoEncoder
 from chemvae_train.models_utils import (
     kl_loss,
     WeightAnnealer,
     sigmoid_schedule,
     GPUUsageLogger,
     categorical_accuracy,
-    load_model,
 )
 from chemvae_train.data_utils import DataPreprocessor
 
@@ -54,6 +54,17 @@ def load_optimiser(params: ChemVAETrainingParams):
     else:
         raise NotImplemented("Please define valid optimizer")
     return optimizer
+
+
+def load_model(params: ChemVAETrainingParams, evaluating=False):
+    """Load the model for the training process."""
+    autoencoder_model = VAEAutoEncoder(params)
+
+    if params.reload_model or evaluating:
+        logging.info(f"Loading data from {params.vae_weights_file}")
+        autoencoder_model.load_state_dict(torch.load(params.vae_weights_file))
+
+    return autoencoder_model
 
 
 def save_model(params, vae_model, batch_id, batch_size_per_loop):

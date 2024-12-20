@@ -97,7 +97,7 @@ if __name__ == '__main__':
     logging.info("Logging started.")
 
     main_sa(
-        model_folder_path="../trained_models/zinc/",
-        metrics_filename="chembl_sa_vae_similarity_testsize_100.npy"
+        model_folder_path="trained_models/zinc/",
+        metrics_filename="zinc_similarity_testsize_500.npy"
     )
     # main_pa()

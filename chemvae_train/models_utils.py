@@ -5,7 +5,6 @@ import torch
 import numpy as np
 
 from chemvae_train.load_params import ChemVAETrainingParams
-from chemvae_train.models import VAEAutoEncoder
 
 
 def add_activation(activation_param):
@@ -93,14 +92,3 @@ class GPUUsageLogger:
             usage = torch.cuda.memory_reserved(0) / 1e9  # Convert to GB
             allocated = torch.cuda.memory_allocated(0) / 1e9  # Convert to GB
             print(f"Batch {batch}: GPU reserved: {usage:.2f} GB, allocated: {allocated:.2f} GB")
-
-
-def load_model(params: ChemVAETrainingParams, evaluating=False):
-    """Load the model for the training process."""
-    autoencoder_model = VAEAutoEncoder(params)
-
-    if params.reload_model or evaluating:
-        logging.info(f"Loading data from {params.vae_weights_file}")
-        autoencoder_model.load_state_dict(torch.load(params.vae_weights_file))
-
-    return autoencoder_model

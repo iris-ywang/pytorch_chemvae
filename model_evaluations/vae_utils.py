@@ -6,8 +6,8 @@ import random
 import yaml
 
 from chemvae_train.models import VAEAutoEncoder
-from chemvae_train.models_utils import load_model
 from chemvae_train.load_params import load_params, ChemVAETrainingParams
+from train_vae import load_model
 
 import numpy as np
 import pandas as pd
