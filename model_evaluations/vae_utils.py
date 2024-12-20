@@ -129,7 +129,8 @@ class VAEUtils(object):
         if self.params.paired_output:
             Z = np.zeros((len(smiles), self.max_length * self.params.data_height))  # self.params.data_height = 1
 
-        self.autoencoder.eval()
+        model = self.autoencoder()
+        model.eval()
         for chunk in self.chunks(list(range(len(smiles))), batch):
             # smiles_tr = list(set(self.smiles) - set(smiles))
             # pair_1 = np.concatenate((one_hot[0], one_hot[1]), axis=0)
@@ -143,13 +144,13 @@ class VAEUtils(object):
                 Z[chunk, :] = sub_one_hot.reshape((len(sub_smiles), self.max_length * self.params.data_height))
                 continue
 
-            x_pred_chunk, z_mean_log_var_chunk = self.autoencoder(get_torch_of_eval_data(sub_one_hot))
-
+            x_pred_chunk, z_mean_log_var_chunk = model(get_torch_of_eval_data(sub_one_hot))
+            z_mean_chunk = z_mean_log_var_chunk[:, :self.params.hidden_dim]
             # swap back x_test axis
             x_pred_chunk = np.swapaxes(x_pred_chunk.detach().numpy(), 1, 2)
-            z_mean_log_var_chunk = z_mean_log_var_chunk.detach().numpy()
+            z_mean_chunk = z_mean_chunk.detach().numpy()
 
-            Z[chunk, :] = z_mean_log_var_chunk
+            Z[chunk, :] = z_mean_chunk
             x_pred[chunk, :] = x_pred_chunk
 
         if self.params.paired_output:
