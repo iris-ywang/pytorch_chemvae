@@ -1,6 +1,8 @@
 import logging
 from typing import Optional
 
+import torch
+
 import mol_utils.mol_utils as mu
 import random
 import yaml
@@ -13,6 +15,11 @@ import numpy as np
 import pandas as pd
 import os
 from mol_utils.mol_utils import fast_verify
+
+
+def get_torch_of_eval_data(X_test: np.array):
+    X_test = np.swapaxes(X_test, 1, 2)
+    return torch.tensor(X_test).float()
 
 
 class VAEUtils(object):
@@ -135,7 +142,13 @@ class VAEUtils(object):
                 # TODO: Check flatten and reshape error
                 Z[chunk, :] = sub_one_hot.reshape((len(sub_smiles), self.max_length * self.params.data_height))
                 continue
-            x_pred_chunk, z_mean_log_var_chunk = self.autoencoder(sub_one_hot)
+
+            x_pred_chunk, z_mean_log_var_chunk = self.autoencoder(get_torch_of_eval_data(sub_one_hot))
+
+            # swap back x_test axis
+            x_pred_chunk = np.swapaxes(x_pred_chunk.detach().numpy(), 1, 2)
+            z_mean_log_var_chunk = z_mean_log_var_chunk.detach().numpy()
+
             Z[chunk, :] = z_mean_log_var_chunk
             x_pred[chunk, :] = x_pred_chunk
 
