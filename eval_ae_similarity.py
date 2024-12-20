@@ -38,9 +38,6 @@ def vae_sa_similarity(
     Xoh_pred = vae_sa.x_pred[-eval_size:]
     X_r = vae_sa.hot_to_smiles(Xoh_pred)
 
-    metrics_oh_all_eval = jaccard_score(Xoh, one_hot_via_max_prob(Xoh_pred), average='micro')
-    print(f"Similarity (one-hot) for all evaluation set: {metrics_oh_all_eval}")
-
     for i in range(demo_size):
 
         print(f"\n Calculating similarity for molecule {i}...")
@@ -57,6 +54,7 @@ def vae_sa_similarity(
         metrics_oh = jaccard_score(Xoh[i], one_hot_via_max_prob(Xoh_pred[i]), average='micro')
         metrics.append(metrics_oh)
 
+    print(f"Similarity (one-hot) for all evaluation set: {metrics}")
     return metrics
 
 
@@ -85,7 +83,7 @@ def main_sa(model_folder_path: str, metrics_filename: str):
         working_directory=None,
     )
     np.save(model_folder_path + f"{metrics_filename}", metrics_jaccard)
-    print("Finished!")
+    logging.info("Finished!")
 
     return metrics_jaccard
 

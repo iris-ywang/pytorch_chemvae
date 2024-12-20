@@ -57,7 +57,7 @@ class VAEUtils(object):
         else:
             # set default working directory as the project folder path
             os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            logging.info("Current default working directory: ", os.getcwd())
+            logging.info(f"Current default working directory:  {os.getcwd()}")
 
         # load parameters
         self.params = load_params(exp_file, False)
