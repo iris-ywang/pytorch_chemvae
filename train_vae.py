@@ -63,22 +63,23 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
     if params.reload_model or evaluating:
         logging.info(f"Loading data from {params.vae_weights_file}")
         autoencoder_model.load_state_dict(torch.load(params.vae_weights_file))
-
+    else:
+        logging.info("Initializing a new set of model weights...")
     return autoencoder_model
 
 
 def save_model(params, vae_model, batch_id, batch_size_per_loop):
     if params.vae_weights_file:
         filename = params.vae_weights_file
-        chunk_batch_filename = params.vae_weights_file[:-3] + f"_{(batch_id + 1) * batch_size_per_loop}.h5"
+        chunk_batch_filename = params.vae_weights_file[:-3] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
         torch.save(vae_model.state_dict(), filename)
         torch.save(vae_model.state_dict(), chunk_batch_filename)
-        logging.info(f"Model weights saved to {filename} and {chunk_batch_filename}.")
+        logging.info(f"Model weights saved to {filename} and {chunk_batch_filename}. \n")
     else:
         today_date = datetime.today().strftime('%Y-%m-%d')
         filename = f"model_weights_{today_date}.pth"
         torch.save(vae_model.state_dict(), filename)
-        logging.info(f"Model weights saved to {filename}.")
+        logging.info(f"Model weights saved to {filename}. \n")
 
 
 def train(params: ChemVAETrainingParams):
@@ -158,7 +159,7 @@ def train(params: ChemVAETrainingParams):
             train_x_pred_loss = sum(train_results["x_pred_loss"]) / num_train_samples
             train_kl_loss = sum(train_results["kl_loss"]) / num_train_samples
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
-
+            logging.info(f"Current chunk: {chunk_id}, epoch: {epoch}, loss: {train_loss}.")
 
             if params.history_file is not None:
 
@@ -191,6 +192,7 @@ def train(params: ChemVAETrainingParams):
 
                 # Prepare data to be logged in history csv file
                 epoch_results = {
+                    "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "epoch": epoch,
                     "loss": train_loss,
                     "val_loss": val_loss,
@@ -203,7 +205,7 @@ def train(params: ChemVAETrainingParams):
                     "categorical_accuracy": train_accuracy,
                 }
 
-                with open("training_log.csv", "a") as f:
+                with open(params.history_file, "a") as f:
                     writer = csv.DictWriter(f, fieldnames=epoch_results.keys())
                     if epoch == 0:  # Write header only for the first epoch
                         writer.writeheader()
@@ -226,7 +228,8 @@ if __name__ == '__main__':
 
     # config logging to be compatible with the pytorch
     logging.basicConfig(
-        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S',
+        filename=f"loggings_on_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt",
     )
     logging.info("Logging started.")
 
