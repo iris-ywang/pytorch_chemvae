@@ -46,7 +46,7 @@ def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
 def load_optimiser(params: ChemVAETrainingParams):
     """Load the optimizer for the training process. Returns a partial function with the learning rate set."""
     if params.optim == "adam":
-        optimizer = partial(torch.optim.Adam, lr=params.lr)
+        optimizer = partial(torch.optim.Adam, lr=params.lr, betas=(params.momentum, 0.999))
     elif params.optim == "rmsprop":
         optimizer = partial(torch.optim.RMSprop, lr=params.lr, rho=params.momentum)
     elif params.optim == "sgd":
@@ -101,13 +101,15 @@ def train(params: ChemVAETrainingParams):
 
     # set up callbacks
     # Initialize the annealer
-    kl_weight = 1.0  # Initial weight for KL loss
+    kl_weight = params.kl_loss_weight  # Initial weight for KL loss
     weight_annealer = WeightAnnealer(
-        schedule=lambda epoch: sigmoid_schedule(epoch, slope=1.0, start=10),
+        schedule=lambda epoch: sigmoid_schedule(
+            epoch, slope=params.anneal_sigmod_slope, start=params.vae_annealer_start
+        ),
         weight_var=kl_weight,
-        weight_orig=1.0
+        weight_orig=kl_weight
     )
-    gpu_logger = GPUUsageLogger(print_every=50)
+    gpu_logger = GPUUsageLogger(print_every=100)
 
     # ##
     # Training loop - chunk by chunk
@@ -142,7 +144,8 @@ def train(params: ChemVAETrainingParams):
                 recon_loss = loss_function(x_pred, x_true)
                 kl_div = kl_loss(z_mean_log_var)
 
-                total_loss = recon_loss + kl_div
+                kl_weight = weight_annealer.weight_var  # Dynamically adjust weight
+                total_loss = recon_loss + kl_weight * kl_div
                 total_loss.backward()
                 optimizer.step()
 
@@ -159,8 +162,15 @@ def train(params: ChemVAETrainingParams):
             train_x_pred_loss = sum(train_results["x_pred_loss"]) / num_train_samples
             train_kl_loss = sum(train_results["kl_loss"]) / num_train_samples
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
-            logging.info(f"Current chunk: {chunk_id}, epoch: {epoch}, loss: {train_loss}.")
-
+            logging.info(
+                f"Current chunk: {chunk_id}, epoch: {epoch}, \n"
+                f"total loss: {total_loss}, \n"
+                f"reconstruction loss: {recon_loss}, \n"
+                f"kl loss: {kl_div}, \n"
+                f"kl weight: {kl_weight}, \n"
+            )
+            logging.info(f"Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, kl_loss: {train_kl_loss}."
+                         f"accuracy: {train_accuracy}.")
             if params.history_file is not None:
 
                 # Validation step
