@@ -96,7 +96,7 @@ def train(params: ChemVAETrainingParams):
     autoencoder_model = load_model(params).to(device)
 
     # compile the autoencoder model
-    loss_function = nn.nn.NLLLoss()
+    loss_function = nn.NLLLoss()
     optimizer = load_optimiser(params)(autoencoder_model.parameters())
 
     # set up callbacks
