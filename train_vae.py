@@ -16,6 +16,7 @@ from chemvae_train.models_utils import (
     sigmoid_schedule,
     GPUUsageLogger,
     categorical_accuracy,
+    categorical_crossentropy_onehot,
 )
 from chemvae_train.data_utils import DataPreprocessor
 
@@ -96,7 +97,7 @@ def train(params: ChemVAETrainingParams):
     autoencoder_model = load_model(params).to(device)
 
     # compile the autoencoder model
-    loss_function = nn.NLLLoss()
+    loss_function = categorical_crossentropy_onehot
     optimizer = load_optimiser(params)(autoencoder_model.parameters())
 
     # set up callbacks
@@ -141,9 +142,7 @@ def train(params: ChemVAETrainingParams):
                 optimizer.zero_grad()
                 x_true = X.to(device)
                 x_pred, z_mean_log_var = autoencoder_model(x_true)
-                log_probs = torch.log(x_pred + 1e-8)  # Add small value to avoid log(0)
-                x_true_categorical = torch.argmax(x_true, dim=1)  # Converts (126, 35, 120) -> (126, 120)
-                recon_loss = loss_function(log_probs, x_true_categorical)
+                recon_loss = loss_function(x_pred, x_true)
                 kl_div = kl_loss(z_mean_log_var)
 
                 kl_weight = weight_annealer.weight_var  # Dynamically adjust weight
@@ -186,9 +185,7 @@ def train(params: ChemVAETrainingParams):
                     for x_batch in test_loader:
                         x_batch = x_batch.to(device)
                         x_pred_val, z_mean_log_var_val = autoencoder_model(x_batch)
-                        log_probs_val = torch.log(x_pred_val + 1e-8)  # Add small value to avoid log(0)
-                        x_true_categorical_val = torch.argmax(torch.tensor(x_batch), dim=1)  # Converts (126, 35, 120) -> (126, 120)
-                        recon_loss_val = loss_function(log_probs_val, x_true_categorical_val)
+                        recon_loss_val = loss_function(x_pred_val, x_batch)
                         kl_div_val = kl_loss(z_mean_log_var_val)
                         total_loss_val = recon_loss_val + kl_div_val
 
