@@ -14,7 +14,7 @@ def add_activation(activation_param):
     elif activation_param == 'relu':
         return nn.ReLU()
     elif activation_param == 'softmax':
-        return nn.Softmax(dim=1)
+        return nn.Softmax(dim=2)
     else:
         raise ValueError('Invalid activation function specified in the params file.')
 
@@ -106,9 +106,9 @@ def categorical_crossentropy_onehot(pred, target):
     Returns:
         Tensor: Mean categorical cross-entropy loss.
     """
-    # Apply log to predictions
-    log_probs = torch.log(pred + 1e-8)  # Avoid log(0)
 
+    pred = torch.nn.functional.softmax(pred, dim=1)  # Apply softmax along the class dimension
+    log_probs = torch.log(pred + 1e-8)  # Avoid log(0)
     # Multiply log_probs with one-hot targets and sum over the class axis
     loss = -torch.sum(target * log_probs, dim=1)  # Sum over the class dimension
 

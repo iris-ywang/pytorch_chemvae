@@ -305,7 +305,6 @@ class SamplingLayer(Layer):
 # The following is the translated AE in pytorch:
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from chemvae_train.load_params import ChemVAETrainingParams
 from chemvae_train.models_utils import add_activation
 
@@ -478,6 +477,7 @@ class Decoder(nn.Module):
             x = middle(x)
         x = self.z_repeats(x)
 
+        # from this point onwards, the shape of x is [batch_size, sequence_length (data_width), in_channel (data_width)]
         for gru, acti in zip(self.gru_layers, self.gru_activation_layers):
             x, _ = gru(x)
             x = acti(x)
@@ -504,7 +504,7 @@ class Decoder(nn.Module):
 
 
 def variational_layers(z_mean, z_log_var):
-    epsilon = torch.randn(z_mean.size(), device=z_mean.device) 
+    epsilon = torch.randn(z_mean.size(), device=z_mean.device)
     z_rand = z_mean + torch.exp(z_log_var / 2) * epsilon
     return z_rand
 

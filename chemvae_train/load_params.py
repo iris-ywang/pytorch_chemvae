@@ -38,7 +38,7 @@ class ChemVAETrainingParams:
 
     # decoder parameters
     gru_depth: int = 4
-    rnn_activation: str = "relu"
+    rnn_activation: str = "tanh"
     recurrent_dim: int = 488
     do_tgru: bool = False
     terminal_GRU_implementation: int = 0
