@@ -389,6 +389,7 @@ class Encoder(nn.Module):
         return x.view(x.size(0), -1).size(1)
 
     def forward(self, x):
+        x = x.permute(0, 2, 1)
         for conv, activation, norm in zip(self.conv_layers, self.conv_activation_layers, self.norm_layers):
             x = conv(x)
             x = activation(x)
@@ -481,7 +482,6 @@ class Decoder(nn.Module):
         for gru, acti in zip(self.gru_layers, self.gru_activation_layers):
             x, _ = gru(x)
             x = acti(x)
-        x = x.permute(0, 2, 1)
         return x
 
     def z_repeats(self, z):
@@ -498,7 +498,6 @@ class Decoder(nn.Module):
         for gru, acti in zip(self.gru_layers, self.gru_activation_layers):
             x, _ = gru(x)
             x = acti(x)
-        x = x.permute(0, 2, 1)
         return x.size()
 
 

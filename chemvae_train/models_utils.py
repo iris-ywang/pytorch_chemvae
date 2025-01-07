@@ -94,23 +94,15 @@ class GPUUsageLogger:
             print(f"Batch {batch}: GPU reserved: {usage:.2f} GB, allocated: {allocated:.2f} GB")
 
 
-def categorical_crossentropy_onehot(pred, target):
-    """
-    Compute categorical cross-entropy loss for one-hot encoded targets.
-    Replicate CategoricalCross-Entropy loss by Keras.
-
-    Args:
-        pred: Predicted probabilities, shape (batch_size, num_classes, seq_length).
-        target: One-hot encoded true targets, shape (batch_size, num_classes, seq_length).
-
-    Returns:
-        Tensor: Mean categorical cross-entropy loss.
-    """
-
-    pred = torch.nn.functional.softmax(pred, dim=1)  # Apply softmax along the class dimension
-    log_probs = torch.log(pred + 1e-8)  # Avoid log(0)
-    # Multiply log_probs with one-hot targets and sum over the class axis
-    loss = -torch.sum(target * log_probs, dim=1)  # Sum over the class dimension
-
-    # Mean over batch and sequence
-    return loss.mean()
+def categorical_crossentropy_tf(pred, target):
+    # Normalize predictions along the class axis
+    pred = pred / pred.sum(dim=-1, keepdim=True)
+    # Clip predictions to avoid log(0)
+    pred = torch.clamp(pred, min=1e-7, max=1.0 - 1e-7)
+    # Compute log probabilities
+    log_probs = torch.log(pred)
+    # Compute element-wise loss
+    elementwise_loss = -target * log_probs
+    # Sum over class dimension and take mean over batch and sequence
+    loss = elementwise_loss.sum(dim=-1).mean()
+    return loss

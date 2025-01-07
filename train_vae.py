@@ -16,17 +16,13 @@ from chemvae_train.models_utils import (
     sigmoid_schedule,
     GPUUsageLogger,
     categorical_accuracy,
-    categorical_crossentropy_onehot,
+    categorical_crossentropy_tf,
 )
 from chemvae_train.data_utils import DataPreprocessor
 
 
 def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     """Load the data for the model fit training process."""
-
-    # Swap 2nd and 3rd axis to match the input shape of the model
-    X_train = np.swapaxes(X_train, 1, 2)
-    X_test = np.swapaxes(X_test, 1, 2)
 
     train_loader = torch.utils.data.DataLoader(
         X_train,
@@ -97,7 +93,7 @@ def train(params: ChemVAETrainingParams):
     autoencoder_model = load_model(params).to(device)
 
     # compile the autoencoder model
-    loss_function = categorical_crossentropy_onehot
+    loss_function = categorical_crossentropy_tf
     optimizer = load_optimiser(params)(autoencoder_model.parameters())
 
     # set up callbacks
@@ -130,10 +126,10 @@ def train(params: ChemVAETrainingParams):
             X_test=X_test_chunk
         )
 
-        train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "categorical_accuracy": []}
         num_train_samples = len(train_loader.dataset)
 
         for epoch in range(params.epochs):
+            train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "categorical_accuracy": []}
             weight_annealer.on_epoch_begin(epoch)
 
             # for loop over train_loader with both ith batch_idx and ith X data
@@ -165,12 +161,10 @@ def train(params: ChemVAETrainingParams):
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
             logging.info(
                 f"Current chunk: {chunk_id}, epoch: {epoch}, \n"
-                f"total loss: {total_loss}, \n"
-                f"reconstruction loss: {recon_loss}, \n"
-                f"kl loss: {kl_div}, \n"
-                f"kl weight: {kl_weight}, \n"
+                f"total loss: {total_loss}, reconstruction loss: {recon_loss}, "
+                f"kl loss: {kl_div}, kl weight: {kl_weight},"
             )
-            logging.info(f"Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, kl_loss: {train_kl_loss}."
+            logging.info(f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, kl_loss: {train_kl_loss}."
                          f"accuracy: {train_accuracy}.")
             if params.history_file is not None:
 
