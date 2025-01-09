@@ -145,7 +145,7 @@ class VAEUtils(object):
             x_pred_chunk, z_mean_log_var_chunk = self.autoencoder(get_torch_of_eval_data(sub_one_hot))
             z_mean_chunk = z_mean_log_var_chunk[:, :self.params.hidden_dim]
             # swap back x_test axis
-            x_pred_chunk = np.swapaxes(x_pred_chunk.detach().numpy(), 1, 2)
+            x_pred_chunk = x_pred_chunk.detach().numpy()
             z_mean_chunk = z_mean_chunk.detach().numpy()
 
             Z[chunk, :] = z_mean_chunk
