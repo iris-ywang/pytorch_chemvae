@@ -306,7 +306,7 @@ class SamplingLayer(Layer):
 import torch
 import torch.nn as nn
 from chemvae_train.load_params import ChemVAETrainingParams
-from chemvae_train.models_utils import add_activation
+from chemvae_train.models_utils import add_activation, ManualGRUWithSoftmax
 
 
 class Encoder(nn.Module):
@@ -451,22 +451,24 @@ class Decoder(nn.Module):
         # GRU layers
         if params.gru_depth > 1:
             for i in range(params.gru_depth - 1):
-                self.gru_layers.append(nn.GRU(
+                self.gru_layers.append(ManualGRUWithSoftmax(
                     input_size=output_size,
                     hidden_size=params.recurrent_dim,
-                    batch_first=True,
+                    activation=params.rnn_activation,
+                    # batch_first=True,
                 ))
                 output_size = params.recurrent_dim
-                self.gru_activation_layers.append(add_activation(params.rnn_activation))
+                # self.gru_activation_layers.append(add_activation(params.rnn_activation))
 
             # disable TGRU
-            self.gru_layers.append(nn.GRU(
+            self.gru_layers.append(ManualGRUWithSoftmax(
                 input_size=output_size,
                 hidden_size=params.data_height,
-                batch_first=True,
+                activation="softmax",
+                # batch_first=True,
             ))
             output_size = params.data_height
-            self.gru_activation_layers.append(add_activation('softmax'))
+            # self.gru_activation_layers.append(add_activation('softmax'))
 
             dummy_input = torch.zeros(1, params.hidden_dim)
             output_size = self._get_final_size(dummy_input)
@@ -479,9 +481,12 @@ class Decoder(nn.Module):
         x = self.z_repeats(x)
 
         # from this point onwards, the shape of x is [batch_size, sequence_length (data_width), in_channel (data_width)]
-        for gru, acti in zip(self.gru_layers, self.gru_activation_layers):
-            x, _ = gru(x)
-            x = acti(x)
+        # for gru, acti in zip(self.gru_layers[:-1], self.gru_activation_layers):
+        #     x, _ = gru(x)
+        #     x = acti(x)
+        # x = self.gru_layers[-1](x)
+        for gru in self.gru_layers:
+            x = gru(x)
         return x
 
     def z_repeats(self, z):
@@ -495,9 +500,12 @@ class Decoder(nn.Module):
             x = middle(x)
         x = self.z_repeats(x)
 
-        for gru, acti in zip(self.gru_layers, self.gru_activation_layers):
-            x, _ = gru(x)
-            x = acti(x)
+        # for gru, acti in zip(self.gru_layers, self.gru_activation_layers):
+        #     x, _ = gru(x)
+        #     x = acti(x)
+
+        for gru in self.gru_layers:
+            x = gru(x)
         return x.size()
 
 

@@ -3,6 +3,7 @@ import logging
 import torch.nn as nn
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 from chemvae_train.load_params import ChemVAETrainingParams
 
@@ -14,9 +15,24 @@ def add_activation(activation_param):
     elif activation_param == 'relu':
         return nn.ReLU()
     elif activation_param == 'softmax':
-        return nn.Softmax(dim=2)
+        return nn.Softmax(dim=-1)
     else:
         raise ValueError('Invalid activation function specified in the params file.')
+
+
+class CustomGRUWithSoftmax(nn.Module):
+    def __init__(self, input_size, hidden_size, batch_first=True):
+        super(CustomGRUWithSoftmax, self).__init__()
+        self.gru = nn.GRU(input_size=input_size, hidden_size=hidden_size, batch_first=batch_first)
+
+    def forward(self, x):
+        # Apply GRU normally
+        x, _ = self.gru(x)  # x shape: [batch_size, seq_length, hidden_size]
+
+        # Apply softmax element-wise along the last dimension (features)
+        x = torch.softmax(x, dim=-1)
+
+        return x
 
 
 def kl_loss(z_mean_log_var):
@@ -106,3 +122,113 @@ def categorical_crossentropy_tf(pred, target):
     # Sum over class dimension and take mean over batch and sequence
     loss = elementwise_loss.sum(dim=-1).mean()
     return loss
+#
+#
+# class ManualGRUWithSoftmax(nn.Module):
+#     def __init__(self, input_size, hidden_size):
+#         super(ManualGRUWithSoftmax, self).__init__()
+#         self.gru_cell = nn.GRUCell(input_size=input_size, hidden_size=hidden_size)
+#         self.hidden_size = hidden_size
+#
+#     def forward(self, x):
+#         batch_size, seq_length, _ = x.size()
+#         h_t = torch.zeros(batch_size, self.hidden_size, device=x.device)  # Initial hidden state
+#
+#         outputs = []
+#         for t in range(seq_length):
+#             h_t = self.gru_cell(x[:, t, :], h_t)  # Process one time step
+#             outputs.append(h_t.unsqueeze(1))
+#
+#         return torch.cat(outputs, dim=1)
+
+
+
+class ManualGRUCellWithSoftmax(nn.Module):
+    def __init__(self, input_size, hidden_size, activation='tanh', recurrent_activation='sigmoid',
+                 use_bias=True, dropout=0.0, recurrent_dropout=0.0, reset_after=True):
+        super(ManualGRUCellWithSoftmax, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.activation = activation
+        self.recurrent_activation = recurrent_activation
+        self.use_bias = use_bias
+        self.reset_after = reset_after
+
+        # Weight matrices
+        self.kernel = nn.Parameter(torch.Tensor(input_size, 3 * hidden_size))
+        self.recurrent_kernel = nn.Parameter(torch.Tensor(hidden_size, 3 * hidden_size))
+        if use_bias:
+            self.bias = nn.Parameter(torch.Tensor(3 * hidden_size))
+        else:
+            self.register_parameter('bias', None)
+
+        # Dropout masks
+        self.dropout = nn.Dropout(dropout)
+        self.recurrent_dropout = nn.Dropout(recurrent_dropout)
+
+        # Initialization
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.kernel)
+        nn.init.orthogonal_(self.recurrent_kernel)
+        if self.use_bias:
+            nn.init.zeros_(self.bias)
+
+    def forward(self, x, h_tm1):
+        # Apply dropout to input
+        x = self.dropout(x)
+
+        # Compute x * kernel (input projection)
+        matrix_x = torch.matmul(x, self.kernel)
+        if self.use_bias:
+            matrix_x += self.bias
+        x_z, x_r, x_h = torch.split(matrix_x, self.hidden_size, dim=-1)
+
+        # Compute h_tm1 * recurrent_kernel (hidden state projection)
+        matrix_inner = torch.matmul(h_tm1, self.recurrent_kernel)
+        recurrent_z, recurrent_r, recurrent_h = torch.split(matrix_inner, self.hidden_size, dim=-1)
+
+        # Compute gates
+        z = F.sigmoid(x_z + recurrent_z)  # Update gate
+        r = F.sigmoid(x_r + recurrent_r)  # Reset gate
+
+        # Compute candidate hidden state
+        if self.reset_after:
+            recurrent_h = r * recurrent_h
+        hh = self.apply_activation(x_h + recurrent_h)
+
+        # Final hidden state
+        h = z * h_tm1 + (1 - z) * hh
+        return h
+
+    def apply_activation(self, x):
+        if self.activation == 'tanh':
+            return torch.tanh(x)
+        elif self.activation == 'relu':
+            return F.relu(x)
+        elif self.activation == 'softmax':
+            return F.softmax(x, dim=-1)
+        elif self.activation is None:
+            return x
+        else:
+            raise ValueError(f"Unsupported activation: {self.activation}")
+
+
+class ManualGRUWithSoftmax(nn.Module):
+    def __init__(self, input_size, hidden_size, activation='tanh'):
+        super(ManualGRUWithSoftmax, self).__init__()
+        self.hidden_size = hidden_size
+        self.gru_cell = ManualGRUCellWithSoftmax(input_size, hidden_size, activation=activation)
+
+    def forward(self, x):
+        batch_size, seq_length, _ = x.size()
+        h_t = torch.zeros(batch_size, self.hidden_size, device=x.device)  # Initial hidden state
+
+        outputs = []
+        for t in range(seq_length):
+            h_t = self.gru_cell(x[:, t, :], h_t)  # Process one time step
+            outputs.append(h_t.unsqueeze(1))
+
+        return torch.cat(outputs, dim=1)
+

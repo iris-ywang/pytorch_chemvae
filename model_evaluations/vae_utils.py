@@ -18,7 +18,6 @@ from mol_utils.mol_utils import fast_verify
 
 
 def get_torch_of_eval_data(X_test: np.array):
-    X_test = np.swapaxes(X_test, 1, 2)
     return torch.tensor(X_test).float()
 
 

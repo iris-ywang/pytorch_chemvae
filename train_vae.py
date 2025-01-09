@@ -27,14 +27,14 @@ def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     train_loader = torch.utils.data.DataLoader(
         X_train,
         batch_size=model_fit_batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=2,
     )
 
     test_loader = torch.utils.data.DataLoader(
         X_test,
         batch_size=model_fit_batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=2,
     )
     return train_loader, test_loader
@@ -68,7 +68,7 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
 def save_model(params, vae_model, batch_id, batch_size_per_loop):
     if params.vae_weights_file:
         filename = params.vae_weights_file
-        chunk_batch_filename = params.vae_weights_file[:-3] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
+        chunk_batch_filename = params.vae_weights_file[:-4] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
         torch.save(vae_model.state_dict(), filename)
         torch.save(vae_model.state_dict(), chunk_batch_filename)
         logging.info(f"Model weights saved to {filename} and {chunk_batch_filename}. \n")
