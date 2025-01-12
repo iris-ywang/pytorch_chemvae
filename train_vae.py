@@ -19,6 +19,7 @@ from chemvae_train.models_utils import (
     categorical_crossentropy_tf,
 )
 from chemvae_train.data_utils import DataPreprocessor
+from utils.utils import logging_set_up
 
 
 def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
@@ -231,23 +232,7 @@ if __name__ == '__main__':
     #                     help="exp directory", default=None)
     # args = vars(parser.parse_args())
 
-    # config logging to be compatible with the pytorch
-    logging.basicConfig(
-        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S',
-        filename=f"loggings_on_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt",
-    )
-    # set up logging to console
-    console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
-    # set a format which is simpler for console use
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    console.setFormatter(formatter)
-    # add the handler to the root logger
-    logging.getLogger('').addHandler(console)
-
-    logger = logging.getLogger(__name__)
-
-
+    logger = logging_set_up("zinc_training")
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
