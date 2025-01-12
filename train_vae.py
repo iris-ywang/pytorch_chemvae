@@ -7,6 +7,10 @@ import numpy as np
 import torch
 import logging
 from torch import nn
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group, destroy_process_group
 
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
 from chemvae_train.models import VAEAutoEncoder
@@ -22,21 +26,39 @@ from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import logging_set_up
 
 
+def ddp_setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+    # initialize the process group
+    init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    # Explicitly setting seed to make sure that models created in two processes start from same random weights
+    torch.manual_seed(0)
+
+
 def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     """Load the data for the model fit training process."""
-
+    if torch.cuda.is_available():
+        sampler_train = DistributedSampler(X_train)
+        sampler_test = DistributedSampler(X_test)
+    else:
+        sampler_train = None
+        sampler_test = None
     train_loader = torch.utils.data.DataLoader(
         X_train,
         batch_size=model_fit_batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=2,
+        pin_memory=True,
+        sampler=sampler_train,
     )
 
     test_loader = torch.utils.data.DataLoader(
         X_test,
         batch_size=model_fit_batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=2,
+        pin_memory=True,
+        sampler=sampler_test,
     )
     return train_loader, test_loader
 
@@ -66,7 +88,11 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
     return autoencoder_model
 
 
-def save_model(params, vae_model, batch_id, batch_size_per_loop):
+def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
+    if torch.cuda.is_available():
+        vae_model = vae_model.module
+        if gpu_id != 0:
+            return
     if params.vae_weights_file:
         filename = params.vae_weights_file
         chunk_batch_filename = params.vae_weights_file[:-4] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
@@ -80,9 +106,11 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop):
         logging.info(f"Model weights saved to {filename}. \n")
 
 
-def train(params: ChemVAETrainingParams):
+def train(params: ChemVAETrainingParams, gpu_id=0):
     """Train the ChemVAE model, the full workflow."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # set device to cuda of id = gpu_id if available, else to cpu
+    device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+    logging.info(f"Device: {device}")
     # Load data
     data_preprocessor = DataPreprocessor()
     data_preprocessor.vectorize_data(params)
@@ -108,6 +136,9 @@ def train(params: ChemVAETrainingParams):
         weight_orig=kl_weight
     )
     gpu_logger = GPUUsageLogger(print_every=100)
+
+    if torch.cuda.is_available():
+        autoencoder_model = DDP(autoencoder_model, device_ids=[gpu_id])
 
     # ##
     # Training loop - chunk by chunk
@@ -218,9 +249,15 @@ def train(params: ChemVAETrainingParams):
                     writer.writerow(epoch_results)
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
-        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop)
+        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, gpu_id)
+    return
 
-    return losses, outputs
+
+def main(rank: int, world_size: int, training_params: ChemVAETrainingParams):
+    ddp_setup(rank=rank, world_size=world_size)
+    train(training_params, gpu_id=rank)
+    destroy_process_group()
+    return
 
 
 if __name__ == '__main__':
@@ -244,5 +281,11 @@ if __name__ == '__main__':
     training_params = load_params(args['exp_file'])
 
     # train the model
-    losses, outputs = train(training_params)
-    print(losses, outputs)
+    if torch.cuda.is_available():
+        world_size = torch.cuda.device_count()
+        logging.info(f"World size: {world_size}")
+        mp.spawn(main, args=(world_size, training_params), nprocs=world_size, join=True)
+    else:
+        train(training_params)
+
+    logging.info("Training completed.")
