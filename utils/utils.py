@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 
-def logging_set_up(save_log_file: bool = True, logging_filename_prefix: str = None):
+def logging_set_up(logging_filename_prefix: str = None, save_log_file: bool = True):
     # config logging to be compatible with the pytorch
     if (logging_filename_prefix is not None) & (not logging_filename_prefix.endswith("_")):
         logging_filename_prefix = f"{logging_filename_prefix}_"
