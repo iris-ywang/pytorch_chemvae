@@ -106,7 +106,7 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
         logging.info(f"Model weights saved to {filename}. \n")
 
 
-def train(params: ChemVAETrainingParams, gpu_id=0):
+def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
     """Train the ChemVAE model, the full workflow."""
     # set device to cuda of id = gpu_id if available, else to cpu
     device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
@@ -152,8 +152,9 @@ def train(params: ChemVAETrainingParams, gpu_id=0):
             n_chunks=n_chunks,
             chunk_size=chunk_size_per_loop,
         )
+        batch_size = params.model_fit_batch_size if n_gpus is None else int(params.model_fit_batch_size / n_gpus)
         train_loader, test_loader = load_data(
-            model_fit_batch_size=params.model_fit_batch_size,
+            model_fit_batch_size=batch_size,
             X_train=X_train_chunk,
             X_test=X_test_chunk
         )
@@ -255,7 +256,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0):
 
 def main(rank: int, world_size: int, training_params: ChemVAETrainingParams):
     ddp_setup(rank=rank, world_size=world_size)
-    train(training_params, gpu_id=rank)
+    train(training_params, gpu_id=rank, n_gpus=world_size)
     destroy_process_group()
     return
 
