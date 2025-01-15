@@ -63,14 +63,18 @@ def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     return train_loader, test_loader
 
 
-def load_optimiser(params: ChemVAETrainingParams):
+def load_optimiser(params: ChemVAETrainingParams, world_size=None):
     """Load the optimizer for the training process. Returns a partial function with the learning rate set."""
+    lr = params.lr
+    if world_size is not None:
+        lr *= world_size
+        logging.info("Learning rate scaled by number of GPUs.")
     if params.optim == "adam":
-        optimizer = partial(torch.optim.Adam, lr=params.lr, betas=(params.momentum, 0.999))
+        optimizer = partial(torch.optim.Adam, lr=lr, betas=(params.momentum, 0.999))
     elif params.optim == "rmsprop":
-        optimizer = partial(torch.optim.RMSprop, lr=params.lr, rho=params.momentum)
+        optimizer = partial(torch.optim.RMSprop, lr=lr, rho=params.momentum)
     elif params.optim == "sgd":
-        optimizer = partial(torch.optim.SGD, lr=params.lr, momentum=params.momentum)
+        optimizer = partial(torch.optim.SGD, lr=lr, momentum=params.momentum)
     else:
         raise NotImplemented("Please define valid optimizer")
     return optimizer
@@ -123,7 +127,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
 
     # compile the autoencoder model
     loss_function = categorical_crossentropy_tf
-    optimizer = load_optimiser(params)(autoencoder_model.parameters())
+    optimizer = load_optimiser(params, world_size=n_gpus)(autoencoder_model.parameters())
 
     # set up callbacks
     # Initialize the annealer
@@ -143,7 +147,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
     # ##
     # Training loop - chunk by chunk
     for chunk_id in range(chunk_start_id, n_chunks):
-        logging.info(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
+        print(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
 
         # load chunk size data
         X_train_chunk, X_test_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
@@ -192,7 +196,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
             train_x_pred_loss = sum(train_results["x_pred_loss"]) / num_train_samples
             train_kl_loss = sum(train_results["kl_loss"]) / num_train_samples
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
-            logging.info(
+            print(
                 f"Current chunk: {chunk_id}, epoch: {epoch}, \n"
                 f"total loss: {total_loss}, reconstruction loss: {recon_loss}, "
                 f"kl loss: {kl_div}, kl weight: {kl_weight},"
