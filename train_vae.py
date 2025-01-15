@@ -32,14 +32,14 @@ def ddp_setup(rank, world_size):
     # initialize the process group
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
     # Explicitly setting seed to make sure that models created in two processes start from same random weights
-    torch.manual_seed(0)
+    # torch.manual_seed(0)
 
 
 def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     """Load the data for the model fit training process."""
     if torch.cuda.is_available():
-        sampler_train = DistributedSampler(X_train)
-        sampler_test = DistributedSampler(X_test)
+        sampler_train = DistributedSampler(X_train, shuffle=True)
+        sampler_test = DistributedSampler(X_test, shuffle=True)
     else:
         sampler_train = None
         sampler_test = None
@@ -152,7 +152,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
             n_chunks=n_chunks,
             chunk_size=chunk_size_per_loop,
         )
-        batch_size = params.model_fit_batch_size if n_gpus is None else int(params.model_fit_batch_size / n_gpus)
+        batch_size = params.model_fit_batch_size
         train_loader, test_loader = load_data(
             model_fit_batch_size=batch_size,
             X_train=X_train_chunk,
