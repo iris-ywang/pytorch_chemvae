@@ -25,8 +25,8 @@ def vae_sa_similarity(
     vae_sa = VAEUtils(
         exp_file=exp_file,
         working_directory=working_directory,
-        test_idx_file=autoencoder_file,
-        autoencoder_file=test_idx_file,
+        test_idx_file=test_idx_file,
+        autoencoder_file=autoencoder_file,
         chembl=True,
     )
 
@@ -79,6 +79,7 @@ def main_sa(model_folder_path: str, metrics_filename: str):
         exp_file=exp_file_path,
 
         autoencoder_file=None,
+        # autoencoder_file=model_folder_path + "zinc_vae3_50400.pth",
         test_idx_file=None,
         working_directory=None,
     )

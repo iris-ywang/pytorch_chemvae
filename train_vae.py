@@ -6,7 +6,7 @@ from functools import partial
 import numpy as np
 import torch
 import logging
-from torch import nn
+
 import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -63,18 +63,14 @@ def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
     return train_loader, test_loader
 
 
-def load_optimiser(params: ChemVAETrainingParams, world_size=None):
+def load_optimiser(params: ChemVAETrainingParams):
     """Load the optimizer for the training process. Returns a partial function with the learning rate set."""
-    lr = params.lr
-    if world_size is not None:
-        lr *= world_size
-        logging.info("Learning rate scaled by number of GPUs.")
     if params.optim == "adam":
-        optimizer = partial(torch.optim.Adam, lr=lr, betas=(params.momentum, 0.999))
+        optimizer = partial(torch.optim.Adam, lr=params.lr, betas=(params.momentum, 0.999))
     elif params.optim == "rmsprop":
-        optimizer = partial(torch.optim.RMSprop, lr=lr, rho=params.momentum)
+        optimizer = partial(torch.optim.RMSprop, lr=params.lr, rho=params.momentum)
     elif params.optim == "sgd":
-        optimizer = partial(torch.optim.SGD, lr=lr, momentum=params.momentum)
+        optimizer = partial(torch.optim.SGD, lr=params.lr, momentum=params.momentum)
     else:
         raise NotImplemented("Please define valid optimizer")
     return optimizer
@@ -127,7 +123,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
 
     # compile the autoencoder model
     loss_function = categorical_crossentropy_tf
-    optimizer = load_optimiser(params, world_size=n_gpus)(autoencoder_model.parameters())
+    optimizer = load_optimiser(params)(autoencoder_model.parameters())
 
     # set up callbacks
     # Initialize the annealer
