@@ -28,11 +28,9 @@ from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import logging_set_up
 
 
-def ddp_setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
+def ddp_setup():
     # initialize the process group
-    init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    init_process_group(backend="nccl")
     # Explicitly setting seed to make sure that models created in two processes start from same random weights
     # torch.manual_seed(0)
 
@@ -114,11 +112,14 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
         logging.info(f"Model weights saved to {filename}. \n")
 
 
-def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
+def train(params: ChemVAETrainingParams):
     """Train the ChemVAE model, the full workflow."""
     # set device to cuda of id = gpu_id if available, else to cpu
+    if torch.cuda.is_available():
+        gpu_id = int(os.environ["LOCAL_RANK"])
     device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {device}")
+
     # Load data
     data_preprocessor = DataPreprocessor()
     data_preprocessor.vectorize_data(params)
@@ -302,12 +303,12 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
     return
 
 
-def main(rank: int, world_size: int, training_params: ChemVAETrainingParams, logging_filename_prefix=None):
+def main(training_params: ChemVAETrainingParams, logging_filename_prefix=None):
     logger = logging_set_up(logging_filename_prefix)
     logging.info("Logging started.")
 
-    ddp_setup(rank=rank, world_size=world_size)
-    train(training_params, gpu_id=rank, n_gpus=world_size)
+    ddp_setup()
+    train(training_params)
     destroy_process_group()
     return
 
@@ -334,11 +335,9 @@ if __name__ == '__main__':
     # train the model
     if torch.cuda.is_available():
         world_size = torch.cuda.device_count()
-        logging.info(f"World size: {world_size}")
-        mp.spawn(
-            main, args=(world_size, training_params, logging_prefix_filename),
-            nprocs=world_size, join=True
-        )
+        logging.info(f"World size: {world_size}. Training with Torchrun.")
+        main(training_params, logging_prefix_filename)
+        # torchrun --standalone --nproc_per_node=3 train_vae.py
     else:
         logger = logging_set_up(logging_prefix_filename)  # check
         logging.info("Logging started.")
