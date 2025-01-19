@@ -23,6 +23,7 @@ from chemvae_train.models_utils import (
     GPUUsageLogger,
     categorical_accuracy,
     tanimoto_similarity_loss,
+    log_gpu_stats,
 )
 from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import logging_set_up
@@ -95,6 +96,7 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
     if torch.cuda.is_available():
         vae_model = vae_model.module
         if gpu_id != 0:
+            # check
             return
     if params.vae_weights_file:
         filename = params.vae_weights_file
@@ -116,8 +118,11 @@ def train(params: ChemVAETrainingParams):
     """Train the ChemVAE model, the full workflow."""
     # set device to cuda of id = gpu_id if available, else to cpu
     if torch.cuda.is_available():
-        gpu_id = int(os.environ["LOCAL_RANK"])
-    device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        global_rank = int(os.environ["RANK"])
+    else:
+        global_rank = "None"
+    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {device}")
 
     # Load data
@@ -159,7 +164,7 @@ def train(params: ChemVAETrainingParams):
     gpu_logger = GPUUsageLogger(print_every=100)
 
     if torch.cuda.is_available():
-        autoencoder_model = DDP(autoencoder_model, device_ids=[gpu_id])
+        autoencoder_model = DDP(autoencoder_model, device_ids=[local_rank])
 
     # ##
     # Training loop - chunk by chunk
@@ -224,6 +229,7 @@ def train(params: ChemVAETrainingParams):
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
 
             print(
+                f"Current chunk: {chunk_id}, epoch: {epoch}, gpu: {global_rank}\n; "
                 f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, "
                 f"kl_loss: {train_kl_loss}, similarity_loss: {train_similarity_loss}, "
                 f"accuracy: {train_accuracy}.")
@@ -283,16 +289,17 @@ def train(params: ChemVAETrainingParams):
                         "Test set type": key,
                     }
 
-                    with open(params.history_file, "a") as f:
-                        writer = csv.DictWriter(f, fieldnames=epoch_results.keys())
-                        if epoch == 0:  # Write header only for the first epoch
-                            writer.writeheader()
-                        writer.writerow(epoch_results)
-                    print(f"Epoch-level evaluation results on test data type {key}: ", epoch_results)
-                print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                with open(params.history_file, "a") as f:
+                    writer = csv.DictWriter(f, fieldnames=epoch_results.keys())
+                    if epoch == 0:  # Write header only for the first epoch
+                        writer.writeheader()
+                    writer.writerow(epoch_results)
+                print(f"Epoch-level evaluation results on test data type {key}: ", epoch_results)
+            print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            log_gpu_stats()
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
-        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, gpu_id)
+        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, local_rank)
 
         # clear memory
         del train_loader
