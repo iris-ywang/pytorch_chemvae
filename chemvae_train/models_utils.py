@@ -1,4 +1,5 @@
 import logging
+import os
 
 import torch.nn as nn
 import torch
@@ -108,6 +109,29 @@ class GPUUsageLogger:
             usage = torch.cuda.memory_reserved(0) / 1e9  # Convert to GB
             allocated = torch.cuda.memory_allocated(0) / 1e9  # Convert to GB
             print(f"Batch {batch}: GPU reserved: {usage:.2f} GB, allocated: {allocated:.2f} GB")
+
+
+def log_gpu_stats():
+    """Logs GPU stats using global rank."""
+    rank = int(os.environ["RANK"])  # Global rank
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        total_memory = torch.cuda.get_device_properties(device).total_memory
+        reserved_memory = torch.cuda.memory_reserved(device)
+        allocated_memory = torch.cuda.memory_allocated(device)
+        free_memory = reserved_memory - allocated_memory
+
+        print(f"[Global Rank {rank}] GPU Usage:")
+        print(f"  Total Memory: {total_memory / 1e9:.2f} GB")
+        print(f"  Reserved Memory: {reserved_memory / 1e9:.2f} GB")
+        print(f"  Allocated Memory: {allocated_memory / 1e9:.2f} GB")
+        print(f"  Free Memory: {free_memory / 1e9:.2f} GB")
+        # Optional: Add a detailed memory summary for advanced diagnostics
+        # Uncomment the following line if needed
+        print(torch.cuda.memory_summary())
+
+    else:
+        print(f"[Global Rank {rank}] No CUDA device available.")
 
 
 def categorical_crossentropy_tf(pred, target):

@@ -19,7 +19,7 @@ from chemvae_train.models_utils import (
     sigmoid_schedule,
     GPUUsageLogger,
     categorical_accuracy,
-    categorical_crossentropy_tf,
+    categorical_crossentropy_tf, log_gpu_stats,
 )
 from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import logging_set_up
@@ -107,8 +107,11 @@ def train(params: ChemVAETrainingParams):
     """Train the ChemVAE model, the full workflow."""
     # set device to cuda of id = gpu_id if available, else to cpu
     if torch.cuda.is_available():
-        gpu_id = int(os.environ["LOCAL_RANK"])
-    device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        global_rank = int(os.environ["RANK"])
+    else:
+        global_rank = "None"
+    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {device}")
 
     # Load data
@@ -138,7 +141,7 @@ def train(params: ChemVAETrainingParams):
     gpu_logger = GPUUsageLogger(print_every=100)
 
     if torch.cuda.is_available():
-        autoencoder_model = DDP(autoencoder_model, device_ids=[gpu_id])
+        autoencoder_model = DDP(autoencoder_model, device_ids=[local_rank])
 
     # ##
     # Training loop - chunk by chunk
@@ -193,7 +196,7 @@ def train(params: ChemVAETrainingParams):
             train_kl_loss = sum(train_results["kl_loss"]) / num_train_samples
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
             print(
-                f"Current chunk: {chunk_id}, epoch: {epoch}, \n"
+                f"Current chunk: {chunk_id}, epoch: {epoch}, gpu: {global_rank}\n"
                 f"total loss: {total_loss}, reconstruction loss: {recon_loss}, "
                 f"kl loss: {kl_div}, kl weight: {kl_weight},"
             )
@@ -248,9 +251,10 @@ def train(params: ChemVAETrainingParams):
                     if epoch == 0:  # Write header only for the first epoch
                         writer.writeheader()
                     writer.writerow(epoch_results)
+            log_gpu_stats()
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
-        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, gpu_id)
+        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, local_rank)
     return
 
 
