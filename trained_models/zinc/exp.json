@@ -1,6 +1,6 @@
 {
   "name": "zinc",
-  "MAX_LEN": 120,
+  "data_width": 120,
   "data_file": "./trained_models/zinc/250k_rndm_zinc_drugs_clean_3.csv",
   "char_file": "./trained_models/zinc/zinc.json",
   "vae_weights_file": "./trained_models/zinc/zinc_vae1.pth",
