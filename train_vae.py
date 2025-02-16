@@ -35,32 +35,32 @@ def ddp_setup(rank, world_size):
     # torch.manual_seed(0)
 
 
-def load_data(model_fit_batch_size: int, X_train: np.array, X_test: np.array):
+def load_data(model_fit_batch_size: int, X: np.array):
     """Load the data for the model fit training process."""
     if torch.cuda.is_available():
-        sampler_train = DistributedSampler(X_train, shuffle=True)
-        sampler_test = DistributedSampler(X_test, shuffle=True)
+        sampler_train = DistributedSampler(X, shuffle=True)
     else:
         sampler_train = None
-        sampler_test = None
-    train_loader = torch.utils.data.DataLoader(
-        X_train,
+
+    # set dtype to float32
+    X = torch.tensor(X, dtype=torch.float32)
+
+    data_loader = torch.utils.data.DataLoader(
+        X,
         batch_size=model_fit_batch_size,
         shuffle=False,
         num_workers=2,
         pin_memory=True,
         sampler=sampler_train,
     )
+    return data_loader
 
-    test_loader = torch.utils.data.DataLoader(
-        X_test,
-        batch_size=model_fit_batch_size,
-        shuffle=False,
-        num_workers=2,
-        pin_memory=True,
-        sampler=sampler_test,
-    )
-    return train_loader, test_loader
+
+def load_multiple_test_loader(model_fit_batch_size: int, data: dict):
+    test_loaders = {}
+    for key, array in data.items():
+        test_loaders[key] = load_data(model_fit_batch_size, array)
+    return test_loaders
 
 
 def load_optimiser(params: ChemVAETrainingParams):
@@ -118,6 +118,17 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
     chunk_size_per_loop, n_chunks, chunk_start_id = \
         data_preprocessor.get_model_fit_chunk_size_and_starting_chunk_id(params)
 
+    data_preprocessor.generate_training_chunks(params, n_chunks)
+
+    if params.paired_output:
+        data_preprocessor.generate_fixed_test_pairs(chunk_size_per_loop, random_state=params.RAND_SEED)
+        test_data_dict = data_preprocessor.Xp_test_all
+    else:
+        test_data_dict = {"Unpaired": data_preprocessor.X_test_all}
+
+    test_loaders_dict = load_multiple_test_loader(
+        model_fit_batch_size=params.model_fit_batch_size, data=test_data_dict
+    )
     # set up training model
     autoencoder_model = load_model(params).to(device)
 
@@ -146,17 +157,14 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
         print(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
 
         # load chunk size data
-        X_train_chunk, X_test_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
+        X_train_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
             if_paired=params.paired_output,
             current_chunk_id=chunk_id,
-            n_chunks=n_chunks,
-            chunk_size=chunk_size_per_loop,
         )
         batch_size = params.model_fit_batch_size
-        train_loader, test_loader = load_data(
+        train_loader = load_data(
             model_fit_batch_size=batch_size,
-            X_train=X_train_chunk,
-            X_test=X_test_chunk
+            X=X_train_chunk,
         )
 
         num_train_samples = len(train_loader.dataset)
@@ -197,57 +205,64 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                 f"total loss: {total_loss}, reconstruction loss: {recon_loss}, "
                 f"kl loss: {kl_div}, kl weight: {kl_weight},"
             )
-            logging.info(f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, kl_loss: {train_kl_loss}."
-                         f"accuracy: {train_accuracy}.")
-            if params.history_file is not None:
+            logging.info(
+                f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, kl_loss: {train_kl_loss}."
+                f"accuracy: {train_accuracy}.")
 
+            if params.history_file is not None:
+                print("Evaluation start time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 # Validation step
                 autoencoder_model.eval()  # Set model to evaluation mode
-                val_results = {
-                    "val_loss": [], "val_x_pred_loss": [], "val_kl_loss": [], "val_categorical_accuracy": []
-                }
-                num_val_samples = len(test_loader.dataset)
 
-                with torch.no_grad():  # Disable gradient computation for validation
-                    for x_batch in test_loader:
-                        x_batch = x_batch.to(device)
-                        x_pred_val, z_mean_log_var_val = autoencoder_model(x_batch)
-                        recon_loss_val = loss_function(x_pred_val, x_batch)
-                        kl_div_val = kl_loss(z_mean_log_var_val)
-                        total_loss_val = recon_loss_val + kl_div_val
+                for key, test_loader in test_loaders_dict.items():
+                    val_results = {
+                        "val_loss": [], "val_x_pred_loss": [], "val_kl_loss": [], "val_categorical_accuracy": []
+                    }
+                    num_val_samples = len(test_loader.dataset)
 
-                        # Accumulate losses
-                        val_results["val_loss"].append(total_loss_val.item() * len(x_batch))
-                        val_results["val_x_pred_loss"].append(recon_loss_val.item() * len(x_batch))
-                        val_results["val_kl_loss"].append(kl_div_val.item() * len(x_batch))
-                        val_results["val_categorical_accuracy"].append(categorical_accuracy(x_pred_val, x_batch))
+                    with torch.no_grad():  # Disable gradient computation for validation
+                        for x_batch in test_loader:
+                            x_batch = x_batch.to(device)
+                            x_pred_val, z_mean_log_var_val = autoencoder_model(x_batch)
+                            recon_loss_val = loss_function(x_pred_val, x_batch)
+                            kl_div_val = kl_loss(z_mean_log_var_val)
+                            total_loss_val = recon_loss_val + kl_div_val
 
-                # Compute epoch-level validation losses
-                val_loss = sum(val_results["val_loss"]) / num_val_samples
-                val_x_pred_loss = sum(val_results["val_x_pred_loss"]) / num_val_samples
-                val_kl_loss = sum(val_results["val_kl_loss"]) / num_val_samples
-                val_accuracy = sum(val_results["val_categorical_accuracy"]) / len(val_results["val_categorical_accuracy"])
+                            # Accumulate losses
+                            val_results["val_loss"].append(total_loss_val.item() * len(x_batch))
+                            val_results["val_x_pred_loss"].append(recon_loss_val.item() * len(x_batch))
+                            val_results["val_kl_loss"].append(kl_div_val.item() * len(x_batch))
+                            val_results["val_categorical_accuracy"].append(categorical_accuracy(x_pred_val, x_batch))
 
-                # Prepare data to be logged in history csv file
-                epoch_results = {
-                    "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "epoch": epoch,
-                    "loss": train_loss,
-                    "val_loss": val_loss,
-                    "val_x_pred_loss": val_x_pred_loss,
-                    "val_kl_loss": val_kl_loss,
-                    "val_categorical_accuracy": val_accuracy,
-                    "annuealer_weight": weight_annealer.weight_var,
-                    "x_pred_loss": train_x_pred_loss,
-                    "kl_loss": train_kl_loss,
-                    "categorical_accuracy": train_accuracy,
-                }
+                    # Compute epoch-level validation losses
+                    val_loss = sum(val_results["val_loss"]) / num_val_samples
+                    val_x_pred_loss = sum(val_results["val_x_pred_loss"]) / num_val_samples
+                    val_kl_loss = sum(val_results["val_kl_loss"]) / num_val_samples
+                    val_accuracy = sum(val_results["val_categorical_accuracy"]) / len(val_results["val_categorical_accuracy"])
 
-                with open(params.history_file, "a") as f:
-                    writer = csv.DictWriter(f, fieldnames=epoch_results.keys())
-                    if epoch == 0:  # Write header only for the first epoch
-                        writer.writeheader()
-                    writer.writerow(epoch_results)
+                    # Prepare data to be logged in history csv file
+                    epoch_results = {
+                        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "epoch": epoch,
+                        "loss": train_loss,
+                        "val_loss": val_loss,
+                        "val_x_pred_loss": val_x_pred_loss,
+                        "val_kl_loss": val_kl_loss,
+                        "val_categorical_accuracy": val_accuracy,
+                        "annuealer_weight": weight_annealer.weight_var,
+                        "x_pred_loss": train_x_pred_loss,
+                        "kl_loss": train_kl_loss,
+                        "categorical_accuracy": train_accuracy,
+                        "Test set type": key,
+                    }
+
+                    with open(params.history_file, "a") as f:
+                        writer = csv.DictWriter(f, fieldnames=epoch_results.keys())
+                        if epoch == 0:  # Write header only for the first epoch
+                            writer.writeheader()
+                        writer.writerow(epoch_results)
+                    print("Epoch evaluation results: ", epoch_results)
+                print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
         save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, gpu_id)
@@ -274,7 +289,7 @@ if __name__ == '__main__':
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/zinc/exp.json", "directory": current_dir}
+    args = {"exp_file": "./trained_models/chembl204/exp.json", "directory": current_dir}
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located

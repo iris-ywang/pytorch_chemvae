@@ -26,6 +26,8 @@ class ChemVAETrainingParams:
     epochs: int = 1
     val_split: float = 0.1  # validation split fraction
     loss: str = "categorical_crossentropy"  # set reconstruction loss
+    if_stratify: bool = False  # whether to stratify the data for training
+    if_smiles: bool = True  # whether to use SMILES strings for training
 
     # convolution parameters
     batchnorm_conv: bool = True
