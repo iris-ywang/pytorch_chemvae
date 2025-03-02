@@ -1,10 +1,10 @@
 {
-  "name": "chembl204",
+  "name": "chembl4016",
   "data_width": 1024,
-  "data_file": "./trained_models/chembl204/data_CHEMBL204.csv",
-  "vae_weights_file": "./trained_models/chembl204/chem204_vae1.pth",
-  "test_idx_file": "./trained_models/chembl204/test_idx.npy",
-  "history_file": "./trained_models/chembl204/history.csv",
+  "data_file": "./trained_models/chembl4016/data_CHEMBL4016.csv",
+  "vae_weights_file": "./trained_models/chembl4016/chem4016_vae1.pth",
+  "test_idx_file": "./trained_models/chembl4016/test_idx.npy",
+  "history_file": "./trained_models/chembl4016/history.csv",
   "checkpoint_path": "./",
   "do_prop_pred": false,
   "TRAIN_MODEL": true,
@@ -24,12 +24,12 @@
   "momentum": 0.97170900638688007,
   "reload_model": false,
   "paired_output": true,
-  "data_size_for_all_loops": 1000,
-  "loop_over_fit_batch_size": 200,
+  "data_size_for_all_loops": 180,
+  "loop_over_fit_batch_size": 90,
   "loop_over_fit_batch_id": 0,
   "model_fit_batch_size": 100,
   "if_stratify": true,
-  "val_split": 0.05,
+  "val_split": 0.108,
   "if_smiles": false,
 
   "fp_siamese_depth": 2,
@@ -37,6 +37,5 @@
   "fp_hidden_dim_reduction_rate": 0.5,
   "fp_dropout_rate": 0.1,
   "fp_activation": "relu",
-  "fp_loss": "mse",
-  "fp_loss_weight": 1.0
+  "fp_loss_weight": 2.0
 }

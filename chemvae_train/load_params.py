@@ -10,7 +10,7 @@ class ChemVAETrainingParams:
     # data parameters
     data_size_for_all_loops: int = None   # number of molecules in the dataset
     data_width: int = 120  # previous name: MAX_LEN
-    data_height: int = 35  # previous name: NCHARS
+    data_height: int = None  # previous name: NCHARS
     loop_over_fit_batch_size: int = 1260
     loop_over_fit_batch_id: int = None
     paired_output: bool = False  # whether to use paired output for the decoder
@@ -79,6 +79,16 @@ class ChemVAETrainingParams:
     # reg_prop_pred_loss: str = "mse"  # loss function to use with property prediction error for regression tasks
     # logit_prop_pred_loss: str = "binary_crossentropy"  # loss function to use with property prediction for logistic tasks
     # prop_pred_loss_weight: float = 0.5
+
+    # FP linear model parameters
+    fp_siamese_depth: int = 2
+    fp_concat_depth: int = 3
+    fp_hidden_dim_reduction_rate: float = 0.5
+    fp_dropout_rate: float = 0.1
+    fp_activation: str = "relu"
+
+    # fp_loss_weight is used to scale the similarity loss
+    fp_loss_weight: float = 1.0
 
     # print output parameters
     verbose_print: int = 0

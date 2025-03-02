@@ -52,6 +52,48 @@ def kl_loss(z_mean_log_var):
     return kl_divergence
 
 
+def tanimoto_similarity_loss(x_pred, x_true):
+    """
+    Compute the Tanimoto similarity loss between two tensors. It first calculates the input's
+    similarity score between x_true[:, :, 0] and x_true[:, :, 1] and get a vector of tanimoto
+    similarity of shape [batch_size,]. Then it calculates the similarity score between x_pred[:, :, 0]
+    and x_pred[:, :, 1] and get a vector of tanimoto similarity of shape [batch_size,]. Finally, it
+    calculates the mean squared error between the two vectors.
+
+    Args:
+        x_pred (Tensor): Predicted tensor of shape (batch_size, num_features, 2).
+        x_true (Tensor): True tensor of shape (batch_size, num_features, 2).
+
+    Returns:
+        Tensor: The Tanimoto similarity loss for the batch.
+    """
+    # Compute Tanimoto similarity between x_true[:, :, 0] and x_true[:, :, 1]
+    true_sim = tanimoto_similarity(x_true[:, :, 0], x_true[:, :, 1])
+    # Compute Tanimoto similarity between x_pred[:, :, 0] and x_pred[:, :, 1]
+    pred_sim = tanimoto_similarity(x_pred[:, :, 0], x_pred[:, :, 1])
+    # Compute mean squared error between the two similarity vectors
+    loss = F.mse_loss(pred_sim, true_sim)
+    return loss
+
+
+def tanimoto_similarity(x, y):
+    """
+    Compute the Tanimoto similarity between two tensors.
+    :param x: tensor of shape (batch_size, num_features).
+    :param y: tensor of shape (batch_size, num_features).
+    :return: tensor of shape (batch_size,).
+    """
+    # Compute dot product
+    dot_product = torch.sum(x * y, dim=-1)
+    # Compute magnitude of x
+    x_magnitude = torch.sum(x * x, dim=-1)
+    # Compute magnitude of y
+    y_magnitude = torch.sum(y * y, dim=-1)
+    # Compute Tanimoto similarity
+    similarity = dot_product / (x_magnitude + y_magnitude - dot_product)
+    return similarity
+
+
 def categorical_accuracy(y_pred, y_true):
     """
     Computes categorical accuracy.

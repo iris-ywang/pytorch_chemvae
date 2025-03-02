@@ -52,9 +52,9 @@ class DataPreprocessor:
         TRAIN_FRAC = 1 - params.val_split
         num_train = int(X.shape[0] * TRAIN_FRAC)
 
-        if num_train % params.model_fit_batch_size != 0:
-            num_train = num_train // params.model_fit_batch_size * \
-                params.model_fit_batch_size
+        # if num_train % params.model_fit_batch_size != 0:
+        #     num_train = num_train // params.model_fit_batch_size * \
+        #         params.model_fit_batch_size
 
         train_idx, test_idx = rand_idx[: int(num_train)], rand_idx[int(num_train):]
 
@@ -279,13 +279,16 @@ class DataPreprocessor:
             logging.info(f"Stratified KFold with {n_chunks} chunks with random state {random_state}")
             # Stratified KFold
             training_subset_size = params.data_size_for_all_loops
-            chunk_indice = self.stratify_regression_data(
-                self.Xy_train_all[:training_subset_size],
-                k=n_chunks,
-                n_bins=n_chunks * 2,
-                strategy='quantile',
-                random_state=random_state
-            )
+            if n_chunks == 1:
+                logging.info("Stratification is not applied. Training data will be split into one chunk.")
+                chunk_indice = [np.arange(training_subset_size)]
+            else:
+                chunk_indice = self.stratify_regression_data(
+                    self.Xy_train_all[:training_subset_size],
+                    k=n_chunks,
+                    strategy='quantile',
+                    random_state=random_state
+                )
         else:
             logging.info(
                 f"No stratification will be applied. {n_chunks} chunks will be split by "

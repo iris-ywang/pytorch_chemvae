@@ -12,6 +12,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
+from chemvae_train.fp_models import FPVAEAutoEncoder
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
 from chemvae_train.models import VAEAutoEncoder
 from chemvae_train.models_utils import (
@@ -20,7 +21,7 @@ from chemvae_train.models_utils import (
     sigmoid_schedule,
     GPUUsageLogger,
     categorical_accuracy,
-    categorical_crossentropy_tf,
+    categorical_crossentropy_tf, tanimoto_similarity_loss,
 )
 from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import logging_set_up
@@ -78,7 +79,10 @@ def load_optimiser(params: ChemVAETrainingParams):
 
 def load_model(params: ChemVAETrainingParams, evaluating=False):
     """Load the model for the training process."""
-    autoencoder_model = VAEAutoEncoder(params)
+    if params.paired_output:
+        autoencoder_model = FPVAEAutoEncoder(params)
+    else:
+        autoencoder_model = VAEAutoEncoder(params)
 
     if params.reload_model or evaluating:
         logging.info(f"Loading data from {params.vae_weights_file}")
@@ -170,7 +174,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
         num_train_samples = len(train_loader.dataset)
 
         for epoch in range(params.epochs):
-            train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "categorical_accuracy": []}
+            train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "similarity_loss": [], "categorical_accuracy": []}
             weight_annealer.on_epoch_begin(epoch)
 
             # for loop over train_loader with both ith batch_idx and ith X data
@@ -181,9 +185,14 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                 x_pred, z_mean_log_var = autoencoder_model(x_true)
                 recon_loss = loss_function(x_pred, x_true)
                 kl_div = kl_loss(z_mean_log_var)
+                similarity_loss = tanimoto_similarity_loss(x_pred, x_true)
+                similarity_loss_weight = params.fp_loss_weight
+                # check if recon_loss is nan tensor:
+                if torch.isnan(recon_loss).any():
+                    raise ValueError("Reconstruction loss is NaN. Exiting training.")
 
                 kl_weight = weight_annealer.weight_var  # Dynamically adjust weight
-                total_loss = recon_loss + kl_weight * kl_div
+                total_loss = (recon_loss + similarity_loss_weight * similarity_loss) + kl_weight * kl_div
                 total_loss.backward()
                 optimizer.step()
 
@@ -193,20 +202,19 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                 train_results["loss"].append(total_loss.item() * len(X))  # Scaled by batch size
                 train_results["x_pred_loss"].append(recon_loss.item() * len(X))
                 train_results["kl_loss"].append(kl_div.item() * len(X))
+                train_results["similarity_loss"].append(similarity_loss.item() * len(X))
                 train_results["categorical_accuracy"].append(categorical_accuracy(x_pred, x_true))
 
             # Compute epoch-level losses (mean per sample)
             train_loss = sum(train_results["loss"]) / num_train_samples
             train_x_pred_loss = sum(train_results["x_pred_loss"]) / num_train_samples
             train_kl_loss = sum(train_results["kl_loss"]) / num_train_samples
+            train_similarity_loss = sum(train_results["similarity_loss"]) / num_train_samples
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
+
             print(
-                f"Current chunk: {chunk_id}, epoch: {epoch}, \n"
-                f"total loss: {total_loss}, reconstruction loss: {recon_loss}, "
-                f"kl loss: {kl_div}, kl weight: {kl_weight},"
-            )
-            logging.info(
-                f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, kl_loss: {train_kl_loss}."
+                f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, "
+                f"kl_loss: {train_kl_loss}, similarity_loss: {train_similarity_loss}, "
                 f"accuracy: {train_accuracy}.")
 
             if params.history_file is not None:
@@ -216,7 +224,8 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
 
                 for key, test_loader in test_loaders_dict.items():
                     val_results = {
-                        "val_loss": [], "val_x_pred_loss": [], "val_kl_loss": [], "val_categorical_accuracy": []
+                        "val_loss": [], "val_x_pred_loss": [], "val_similarity_loss": [],
+                        "val_kl_loss": [], "val_categorical_accuracy": []
                     }
                     num_val_samples = len(test_loader.dataset)
 
@@ -226,18 +235,24 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                             x_pred_val, z_mean_log_var_val = autoencoder_model(x_batch)
                             recon_loss_val = loss_function(x_pred_val, x_batch)
                             kl_div_val = kl_loss(z_mean_log_var_val)
-                            total_loss_val = recon_loss_val + kl_div_val
+                            similarity_loss_val = tanimoto_similarity_loss(x_pred_val, x_batch)
+                            similarity_loss_weight = params.fp_loss_weight
+
+                            kl_weight = weight_annealer.weight_var  # Dynamically adjust weight
+                            total_loss_val = (recon_loss_val + similarity_loss_weight * similarity_loss_val) + kl_weight * kl_div_val
 
                             # Accumulate losses
                             val_results["val_loss"].append(total_loss_val.item() * len(x_batch))
                             val_results["val_x_pred_loss"].append(recon_loss_val.item() * len(x_batch))
                             val_results["val_kl_loss"].append(kl_div_val.item() * len(x_batch))
+                            val_results["val_similarity_loss"].append(similarity_loss_val.item() * len(x_batch))
                             val_results["val_categorical_accuracy"].append(categorical_accuracy(x_pred_val, x_batch))
 
                     # Compute epoch-level validation losses
                     val_loss = sum(val_results["val_loss"]) / num_val_samples
                     val_x_pred_loss = sum(val_results["val_x_pred_loss"]) / num_val_samples
                     val_kl_loss = sum(val_results["val_kl_loss"]) / num_val_samples
+                    val_similarity_loss = sum(val_results["val_similarity_loss"]) / num_val_samples
                     val_accuracy = sum(val_results["val_categorical_accuracy"]) / len(val_results["val_categorical_accuracy"])
 
                     # Prepare data to be logged in history csv file
@@ -248,6 +263,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                         "val_loss": val_loss,
                         "val_x_pred_loss": val_x_pred_loss,
                         "val_kl_loss": val_kl_loss,
+                        "val_similarity_loss": val_similarity_loss,
                         "val_categorical_accuracy": val_accuracy,
                         "annuealer_weight": weight_annealer.weight_var,
                         "x_pred_loss": train_x_pred_loss,
@@ -261,7 +277,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                         if epoch == 0:  # Write header only for the first epoch
                             writer.writeheader()
                         writer.writerow(epoch_results)
-                    print("Epoch evaluation results: ", epoch_results)
+                    print(f"Epoch-level evaluation results on test data type {key}: ", epoch_results)
                 print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
@@ -289,7 +305,7 @@ if __name__ == '__main__':
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/chembl204/exp.json", "directory": current_dir}
+    args = {"exp_file": "./trained_models/chembl4016/exp.json", "directory": current_dir}
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located
