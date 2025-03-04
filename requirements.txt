@@ -18,3 +18,4 @@ torchvision==0.17.2
 typing_extensions==4.12.2
 tzdata==2024.2
 scikit-learn==1.0.2
+trueskill==0.4.5

@@ -22,6 +22,7 @@ class DataPreprocessor:
     Xy_train_all: np.array = None
     training_chunk_indice: list = None
     Xp_test_all: dict = None
+    X_all: np.array = None
 
     def vectorize_data(self, params: ChemVAETrainingParams):
         if params.if_smiles:
@@ -69,6 +70,7 @@ class DataPreprocessor:
         self.X_train_all = X_train
         self.X_test_all = X_test
         self.Xy_train_all = chembl_data.iloc[train_idx, 1:].to_numpy(dtype=np.float32)
+        self.X_all = chembl_data.iloc[:, 1:].to_numpy(dtype=np.float32)
 
         return X_train, X_test
 
