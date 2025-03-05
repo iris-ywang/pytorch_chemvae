@@ -15,13 +15,11 @@ class PairwiseModel():
                  ML_reg=None,
                  pairing_method=pair_by_pair_id_per_feature,
                  search_model=None,
-                 batch_size=1000000,
-                 pairing_params=None):
+                 batch_size=1000000):
         self.pairwise_data_info = pairwise_data_info
         self.ML_cls = ML_cls
         self.ML_reg = ML_reg
         self.batch_size = batch_size
-        self.pairing_params = pairing_params
         self.pairing_method = pairing_method
         self.search_model = search_model
         self.Y_values = PairwiseValues()
@@ -148,8 +146,11 @@ class PairwiseModel():
                                      test_batch * self.batch_size: (test_batch + 1) * self.batch_size]
             else:
                 test_pair_id_batch = test_pair_ids[test_batch * self.batch_size:]
-            test_pairs_batch = pair_by_pair_id_per_feature(data=self.pairwise_data_info.train_test,
-                                                           pair_ids=test_pair_id_batch)
+
+            test_pairs_batch = self.pairing_method(
+                data=self.pairwise_data_info.train_test,
+                pair_ids=test_pair_id_batch
+            )
             Y_pa_true += list(test_pairs_batch[:, 0])
             Y_pa_dist += list(self.trained_reg_model.predict(test_pairs_batch[:, 1:]))
             if (test_batch + 1) * self.batch_size >= len(test_pair_ids): break

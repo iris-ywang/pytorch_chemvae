@@ -22,6 +22,7 @@ def run(
     metrics_per_dataset = []
     if n_jobs is None:
         for fold_id, foldwise_data in train_test_splits_dict.items():
+            logging.info(f"Running fold {fold_id}")
             metrics_per_fold = run_per_dataset(
                 foldwise_data=foldwise_data,
                 ML_cls=ML_cls,
@@ -30,8 +31,16 @@ def run(
                 percentage_of_top_samples=percentage_of_top_samples,
                 target_value_col_name=target_value_col_name,
             )
+            metrics_per_fold["fold_id"] = fold_id
             metrics_per_dataset.append(metrics_per_fold)
-        return metrics_per_dataset
+
+        all_metrics = pd.concat(metrics_per_dataset)
+        mean_metrics = all_metrics.drop(columns=["fold_id"]).groupby(all_metrics.index).mean().head()
+        print(all_metrics)
+        print()
+        print(mean_metrics)
+
+        return mean_metrics, all_metrics
 
 
 def run_per_dataset(
@@ -41,7 +50,7 @@ def run_per_dataset(
         percentage_of_top_samples=0.1,
         paring_method=pair_by_pair_id_per_feature,
         target_value_col_name='y'
-):
+) -> pd.DataFrame:
 
     train_set = foldwise_data['train_set']
     test_set = foldwise_data['test_set']
@@ -101,7 +110,7 @@ def results_of_pairwise_combinations(
 ):
     results_dict = {}
     if pairwise_model.ML_cls is not None:
-        logging.info("Extrapolation performance evaluation:")
+        logging.info("Extrapolation performance evaluation...")
         y_ranking_c2 = pairwise_model.predict_rank(
             ranking_method=rank_method,
             ranking_input_type="c2",
@@ -148,7 +157,7 @@ def results_of_pairwise_combinations(
         results_dict["reg_metrics_from_sbbr"] = metrics_est
 
     if pairwise_model.ML_reg is not None:
-        logging.info("Pairwise regressive performance evaluation:")
+        logging.info("Pairwise regressive performance evaluation...")
         pairwise_model.predict()
 
         y_est = estimate_y_from_averaging(
@@ -171,7 +180,8 @@ def metrics_evaluation(y_true, y_predict):
     mse = mean_squared_error(y_true, y_predict)
     mae = mean_absolute_error(y_true, y_predict)
     r2 = r2_score(y_true, y_predict)
-    return [rho, mse, mae, r2, np.nan, np.nan]
+    # return [rho, mse, mae, r2, np.nan, np.nan]
+    return {"rho": rho, "mse": mse, "mae": mae, "r2": r2}
 
 
 def estimate_y_from_averaging(Y_pa_c2, c2_test_pair_ids, test_ids, y_true, Y_weighted=None):

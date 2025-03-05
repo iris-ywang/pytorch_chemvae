@@ -2,6 +2,7 @@ import logging
 import os
 
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 
 from chemvae_train.data_utils import DataPreprocessor
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
@@ -26,10 +27,10 @@ def main(params: ChemVAETrainingParams):
     metrics_per_dataset = run(
         train_test_splits_dict=train_test_splits_dict,
         ML_reg=RandomForestRegressor(random_state=1, n_jobs=-1),
+        # ML_reg=LinearRegression(),  # for debugging purpose only
         pairing_method=pairing_method,
         percentage_of_top_samples=0.1,  # top-performing as in top 10%
     )
-
 
 
 if __name__ == '__main__':
