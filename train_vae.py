@@ -301,11 +301,11 @@ if __name__ == '__main__':
     #                     help="exp directory", default=None)
     # args = vars(parser.parse_args())
 
-    logger = logging_set_up("chembl4016_training")  # check
+    logger = logging_set_up("chembl204_training")  # check
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/chembl4016/exp.json", "directory": current_dir}  # check
+    args = {"exp_file": "./trained_models/chembl204/exp.json", "directory": current_dir}  # check
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located

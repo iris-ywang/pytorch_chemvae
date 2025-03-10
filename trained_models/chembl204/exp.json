@@ -25,18 +25,17 @@
   "reload_model": false,
   "paired_output": true,
   "data_size_for_all_loops": 1000,
-  "loop_over_fit_batch_size": 200,
+  "loop_over_fit_batch_size": 250,
   "loop_over_fit_batch_id": 0,
   "model_fit_batch_size": 100,
   "if_stratify": true,
-  "val_split": 0.05,
+  "val_split": 0.0348,
   "if_smiles": false,
 
   "fp_siamese_depth": 2,
-  "fp_concat_depth": 3,
+  "fp_concat_depth": 4,
   "fp_hidden_dim_reduction_rate": 0.5,
   "fp_dropout_rate": 0.1,
   "fp_activation": "relu",
-  "fp_loss": "mse",
   "fp_loss_weight": 1.0
 }
