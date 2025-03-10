@@ -37,5 +37,5 @@
   "fp_hidden_dim_reduction_rate": 0.5,
   "fp_dropout_rate": 0.1,
   "fp_activation": "relu",
-  "fp_loss_weight": 1.0
+  "fp_loss_weight": 3.0
 }
