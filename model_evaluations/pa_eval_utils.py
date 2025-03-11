@@ -259,6 +259,8 @@ class LatentRepViaFPVAE:
         for chunk in range(n_chunks):
             start_idx = chunk * chunk_size
             end_idx = min((chunk + 1) * chunk_size, len(pair_ids))
+            if start_idx == end_idx:
+                break
             pair_ids_chunk = pair_ids[start_idx:end_idx]
 
             # For each pair in pair_ids_chunk,

@@ -15,7 +15,7 @@ def main(params: ChemVAETrainingParams):
     # Load the data
     data_preprocessor = DataPreprocessor()
     data_preprocessor.vectorize_data(params)
-    train_test = data_preprocessor.X_all
+    train_test = data_preprocessor.X_all[:params.data_size_for_all_loops]
 
     # Load the FP VAE model
     fp_autoencoder = load_model(params, evaluating=True)
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/chembl4016/exp.json", "directory": current_dir}
+    args = {"exp_file": "./trained_models/chembl204/exp.json", "directory": current_dir}
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located
