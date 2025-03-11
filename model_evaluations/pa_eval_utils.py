@@ -32,6 +32,7 @@ def run(
                 target_value_col_name=target_value_col_name,
             )
             metrics_per_fold["fold_id"] = fold_id
+            logging.info(f"Metrics for fold {fold_id}: {metrics_per_fold}")
             metrics_per_dataset.append(metrics_per_fold)
 
         all_metrics = pd.concat(metrics_per_dataset)
