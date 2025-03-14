@@ -8,6 +8,7 @@ import torch
 import logging
 
 import torch.multiprocessing as mp
+from torch import nn
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
@@ -137,8 +138,9 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
     autoencoder_model = load_model(params).to(device)
 
     # compile the autoencoder model
-    loss_function = categorical_crossentropy_tf
+    loss_function = nn.BCEWithLogitsLoss()
     optimizer = load_optimiser(params)(autoencoder_model.parameters())
+    torch.nn.utils.clip_grad_norm_(autoencoder_model.parameters(), max_norm=1.0)
 
     # set up callbacks
     # Initialize the annealer
@@ -189,6 +191,10 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                 similarity_loss_weight = params.fp_loss_weight
                 # check if recon_loss is nan tensor:
                 if torch.isnan(recon_loss).any():
+                    assert not torch.isnan(x_pred).any(), "Input contains NaNs"
+                    print(x_pred)
+                    print(x_pred.shape)
+                    print(epoch, batch_idx)
                     raise ValueError("Reconstruction loss is NaN. Exiting training.")
 
                 kl_weight = weight_annealer.weight_var  # Dynamically adjust weight

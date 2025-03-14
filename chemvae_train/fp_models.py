@@ -25,7 +25,7 @@ class FPEncoder(nn.Module):
         self.siamese_layers.append(add_activation(params.fp_activation))
         if params.fp_dropout_rate > 0.0:
             self.siamese_layers.append(nn.Dropout(params.fp_dropout_rate))
-        if params.batchnorm_mid:
+        if params.batchnorm_conv:
             self.siamese_layers.append(nn.BatchNorm1d(
                 num_features=siamese_previous_n_out_features))
 
@@ -42,7 +42,7 @@ class FPEncoder(nn.Module):
             self.siamese_layers.append(add_activation(params.fp_activation))
             if params.fp_dropout_rate > 0.0:
                 self.siamese_layers.append(nn.Dropout(params.fp_dropout_rate))
-            if params.batchnorm_mid:
+            if params.batchnorm_conv:
                 self.siamese_layers.append(nn.BatchNorm1d(
                     num_features=siamese_previous_n_out_features))
 
@@ -172,7 +172,7 @@ class FPDecoder(nn.Module):
             self.siamese_layers.append(add_activation(params.fp_activation))
             if params.fp_dropout_rate > 0.0:
                 self.siamese_layers.append(nn.Dropout(params.fp_dropout_rate))
-            if params.batchnorm_mid:
+            if params.batchnorm_conv:
                 self.siamese_layers.append(nn.BatchNorm1d(
                     num_features=siamese_dim_list[-(i+2)]))
 
