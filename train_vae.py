@@ -288,6 +288,9 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
         save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, gpu_id)
+
+    # delete memory intensive variable
+    del data_preprocessor
     return
 
 
