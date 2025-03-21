@@ -294,7 +294,10 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
     return
 
 
-def main(rank: int, world_size: int, training_params: ChemVAETrainingParams):
+def main(rank: int, world_size: int, training_params: ChemVAETrainingParams, logging_filename_prefix=None):
+    logger = logging_set_up(logging_filename_prefix)
+    logging.info("Logging started.")
+
     ddp_setup(rank=rank, world_size=world_size)
     train(training_params, gpu_id=rank, n_gpus=world_size)
     destroy_process_group()
@@ -310,8 +313,7 @@ if __name__ == '__main__':
     #                     help="exp directory", default=None)
     # args = vars(parser.parse_args())
 
-    logger = logging_set_up("chembl204_225_training")  # check
-    logging.info("Logging started.")
+    logging_prefix_filename = "chembl204_225_training"
 
     current_dir = os.getcwd()
     args = {"exp_file": "./trained_models/chembl204_225/exp.json", "directory": current_dir}  # check
@@ -325,8 +327,14 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         world_size = torch.cuda.device_count()
         logging.info(f"World size: {world_size}")
-        mp.spawn(main, args=(world_size, training_params), nprocs=world_size, join=True)
+        mp.spawn(
+            main, args=(world_size, training_params, logging_prefix_filename),
+            nprocs=world_size, join=True
+        )
     else:
+        logger = logging_set_up(logging_prefix_filename)  # check
+        logging.info("Logging started.")
+
         train(training_params)
 
     logging.info("Training completed.")
