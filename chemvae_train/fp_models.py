@@ -99,7 +99,7 @@ class FPEncoder(nn.Module):
         # Pass the concatenated tensor through the normal layers
         for norm in self.middle_layers:
             x = norm(x)
-            print(x1.size())
+            print(x.size())
         z_mean = self.z_mean(x)
         z_log_var = self.z_log_var(x)
         z_samp = variational_layers(z_mean, z_log_var)
