@@ -91,14 +91,15 @@ class FPEncoder(nn.Module):
         for siamese in self.siamese_layers:
             x1 = siamese(x1)
             x2 = siamese(x2)
+            print(x1.size())
 
         # Concatenate the two tensors and their difference into a single tensor
         x = torch.cat((x1, x2, x1 - x2), 1)
-
+        print(x.size())
         # Pass the concatenated tensor through the normal layers
         for norm in self.middle_layers:
             x = norm(x)
-
+            print(x1.size())
         z_mean = self.z_mean(x)
         z_log_var = self.z_log_var(x)
         z_samp = variational_layers(z_mean, z_log_var)
