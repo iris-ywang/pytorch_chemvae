@@ -371,7 +371,8 @@ class DataPreprocessor:
         """
         k = len(chunks)  # Number of chunks
         x = N // k  # Number of samples per chunk
-
+        if x == 0:
+            x = 1
         # Random seed will be set by params.RAND_SEED
         # if random_state is not None:
         #     random.seed(random_state)
@@ -382,4 +383,4 @@ class DataPreprocessor:
                 np.random.choice(chunk, size=min(x, len(chunk)), replace=False).tolist()
             )
 
-        return sampled_indices
+        return sampled_indices[:N]
