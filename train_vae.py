@@ -102,7 +102,10 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
         filename = params.vae_weights_file
         chunk_batch_filename = params.vae_weights_file[:-4] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
         torch.save(vae_model.state_dict(), filename)
-        torch.save(vae_model.state_dict(), chunk_batch_filename)
+        if params.save_chunk_weights:
+            torch.save(vae_model.state_dict(), chunk_batch_filename)
+        else:
+            chunk_batch_filename = ""
         logging.info(f"Model weights saved to {filename} and {chunk_batch_filename}. \n")
     else:
         today_date = datetime.today().strftime('%Y-%m-%d')
@@ -289,6 +292,10 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
         save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, gpu_id)
+
+        # clear memory
+        del train_loader
+        del X_train_chunk
 
     # delete memory intensive variable
     del data_preprocessor

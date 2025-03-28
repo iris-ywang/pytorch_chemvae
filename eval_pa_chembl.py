@@ -11,11 +11,13 @@ from submodules.pairwise_formulation.pa_basics.import_data import kfold_splits
 from train_vae import load_model
 
 
-def main(params: ChemVAETrainingParams):
+def main(params: ChemVAETrainingParams, n_qsar_test_size=None):
     # Load the data
     data_preprocessor = DataPreprocessor()
     data_preprocessor.vectorize_data(params)
-    train_test = data_preprocessor.X_all[:params.data_size_for_all_loops]
+    if n_qsar_test_size is None:
+        n_qsar_test_size = params.data_size_for_all_loops
+    train_test = data_preprocessor.X_all[:int(n_qsar_test_size)]
 
     # Load the FP VAE model
     fp_autoencoder = load_model(params, evaluating=True)
@@ -40,10 +42,20 @@ if __name__ == '__main__':
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/chembl204/exp.json", "directory": current_dir}
+    args = {"exp_file": "./trained_models/all_chembl/exp.json", "directory": current_dir}
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located
 
     training_params = load_params(args['exp_file'])
-    main(training_params)
+
+    #### if changing params:
+
+    # Avoid mismatch between data_file path and training params exp.json file,
+    # because the shuffle state and val_split will be different.
+    # training_params.data_file = "./trained_models/chembl204/exp.json"
+
+    # training_params.vae_weights_file = "./trained_models/chembl204/chembl204_vae_weights.h5"
+    n_test_size = 300
+
+    main(training_params, n_test_size)
