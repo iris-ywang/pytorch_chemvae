@@ -31,6 +31,7 @@
   "if_stratify": true,
   "val_split": 0.000520,
   "if_smiles": false,
+  "save_model_per_chunk": false,
 
   "fp_siamese_depth": 2,
   "fp_concat_depth": 4,

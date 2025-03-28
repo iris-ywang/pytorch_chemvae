@@ -298,6 +298,7 @@ class DataPreprocessor:
             )
             chunk_indice = np.array_split(np.arange(params.data_size_for_all_loops), n_chunks)
             chunk_indice = [fold.tolist() for fold in chunk_indice]
+            self.Xy_train_all = None  # Clear the memory
 
         self.training_chunk_indice = chunk_indice
         return chunk_indice

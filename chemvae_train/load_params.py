@@ -28,6 +28,7 @@ class ChemVAETrainingParams:
     loss: str = "categorical_crossentropy"  # set reconstruction loss
     if_stratify: bool = False  # whether to stratify the data for training
     if_smiles: bool = True  # whether to use SMILES strings for training
+    save_model_per_chunk: bool = True  # whether to save model per chunk
 
     # convolution parameters
     batchnorm_conv: bool = True

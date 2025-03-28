@@ -22,7 +22,7 @@ from chemvae_train.models_utils import (
     sigmoid_schedule,
     GPUUsageLogger,
     categorical_accuracy,
-    categorical_crossentropy_tf, tanimoto_similarity_loss,
+    tanimoto_similarity_loss,
 )
 from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import logging_set_up
@@ -163,6 +163,7 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
         print(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
 
         # load chunk size data
+        data_preprocessor.X_all = None  # clear memory
         X_train_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
             if_paired=params.paired_output,
             current_chunk_id=chunk_id,
