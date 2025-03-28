@@ -28,7 +28,7 @@
   "loop_over_fit_batch_size": 500,
   "loop_over_fit_batch_id": 0,
   "model_fit_batch_size": 100,
-  "if_stratify": true,
+  "if_stratify": false,
   "val_split": 0.000520,
   "if_smiles": false,
   "save_model_per_chunk": false,
