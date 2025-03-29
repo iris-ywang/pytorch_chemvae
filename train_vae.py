@@ -102,7 +102,7 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
         filename = params.vae_weights_file
         chunk_batch_filename = params.vae_weights_file[:-4] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
         torch.save(vae_model.state_dict(), filename)
-        if params.save_chunk_weights:
+        if params.save_model_per_chunk:
             torch.save(vae_model.state_dict(), chunk_batch_filename)
         else:
             chunk_batch_filename = ""
@@ -321,10 +321,10 @@ if __name__ == '__main__':
     #                     help="exp directory", default=None)
     # args = vars(parser.parse_args())
 
-    logging_prefix_filename = "chembl204_225_training"
+    logging_prefix_filename = "chembl_all_training"
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/chembl204_225/exp.json", "directory": current_dir}  # check
+    args = {"exp_file": "./trained_models/all_chembl/exp.json", "directory": current_dir}  # check
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located
