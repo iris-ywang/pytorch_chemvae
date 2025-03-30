@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     # Avoid mismatch between data_file path and training params exp.json file,
     # because the shuffle state and val_split will be different.
-    # training_params.data_file = "./trained_models/chembl204/exp.json"
+    training_params.data_file = "./trained_models/chembl204/data_CHEMBL204.csv"
 
     # training_params.vae_weights_file = "./trained_models/chembl204/chembl204_vae_weights.h5"
     n_test_size = 300
