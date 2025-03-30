@@ -96,7 +96,6 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
     if torch.cuda.is_available():
         vae_model = vae_model.module
         if gpu_id != 0:
-            # check
             return
     if params.vae_weights_file:
         filename = params.vae_weights_file
@@ -296,7 +295,7 @@ def train(params: ChemVAETrainingParams):
                     writer.writerow(epoch_results)
                 print(f"Epoch-level evaluation results on test data type {key}: ", epoch_results)
             print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            log_gpu_stats()
+            if epoch == 0: log_gpu_stats()
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
         save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, local_rank)
