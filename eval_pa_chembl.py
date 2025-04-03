@@ -35,14 +35,19 @@ def main(params: ChemVAETrainingParams, n_qsar_test_size=None):
     )
 
 
-if __name__ == '__main__':
+def run_eval(
+        exp_file_path,
+        n_test_size=200,
+        specific_dataset_path=None,
+        specific_model_path=None,
+):
     logging.basicConfig(
         level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
     )
     logging.info("Logging started.")
 
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/all_chembl/exp.json", "directory": current_dir}
+    args = {"exp_file": exp_file_path, "directory": current_dir}
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located
@@ -53,9 +58,16 @@ if __name__ == '__main__':
 
     # Avoid mismatch between data_file path and training params exp.json file,
     # because the shuffle state and val_split will be different.
-    training_params.data_file = "./trained_models/chembl204/data_CHEMBL204.csv"
+    if specific_dataset_path is not None:
+        training_params.data_file = specific_dataset_path
+        logging.warning(f"Using dataset: {specific_dataset_path}")
 
-    # training_params.vae_weights_file = "./trained_models/chembl204/chembl204_vae_weights.h5"
-    n_test_size = 300
+    if specific_model_path is not None:
+        training_params.vae_weights_file = specific_model_path
+        logging.warning(f"Using model weights: {specific_model_path}")
 
     main(training_params, n_test_size)
+
+
+if __name__ == "__main__":
+    run_eval("./trained_models/all_chembl/exp.json", 200)
