@@ -86,8 +86,15 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
         autoencoder_model = VAEAutoEncoder(params)
 
     if params.reload_model or evaluating:
-        logging.info(f"Loading data from {params.vae_weights_file}")
-        autoencoder_model.load_state_dict(torch.load(params.vae_weights_file, map_location=torch.device('cpu')))
+
+        if params.pre_trained_weights_file is not None and params.loop_over_fit_batch_id == 0:
+            weights_path = params.pre_trained_weights_file
+        else:
+            weights_path = params.vae_weights_file
+
+        logging.info(f"Loading data from {weights_path}")
+        # autoencoder_model.load_state_dict(torch.load(weights_path, map_location=torch.device('cpu')))
+        autoencoder_model.load_state_dict(torch.load(weights_path))
     else:
         logging.info("Initializing a new set of model weights...")
     return autoencoder_model
