@@ -12,7 +12,7 @@ class ChemVAETrainingParams:
     data_width: int = 120  # previous name: MAX_LEN
     data_height: int = None  # previous name: NCHARS
     loop_over_fit_batch_size: int = 1260
-    loop_over_fit_batch_id: int = None
+    loop_over_fit_batch_id: int = 0
     paired_output: bool = False  # whether to use paired output for the decoder
     RAND_SEED: int = None
     PADDING: str = "right"
@@ -101,6 +101,7 @@ class ChemVAETrainingParams:
     directory: str = None  # parent directory for all files
     data_file: str = None  # data file name/path
     vae_weights_file: str = None  # model weights file name/path
+    pre_trained_weights_file: str = None # pre-trained model weights file name/path
     test_idx_file: str = None
     history_file: str = None
     checkpoint_path: str = None
