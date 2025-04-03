@@ -106,6 +106,7 @@ class ChemVAETrainingParams:
     checkpoint_path: str = None
     limit_data: int = None
     char_file: str = None
+    name: str = "no_name"
 
 
 def load_params(param_file=None, verbose=True):

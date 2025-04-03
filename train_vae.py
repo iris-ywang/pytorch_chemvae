@@ -87,7 +87,7 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
 
     if params.reload_model or evaluating:
         logging.info(f"Loading data from {params.vae_weights_file}")
-        autoencoder_model.load_state_dict(torch.load(params.vae_weights_file))
+        autoencoder_model.load_state_dict(torch.load(params.vae_weights_file, map_location=torch.device('cpu')))
     else:
         logging.info("Initializing a new set of model weights...")
     return autoencoder_model
@@ -312,7 +312,7 @@ def main(rank: int, world_size: int, training_params: ChemVAETrainingParams, log
     return
 
 
-if __name__ == '__main__':
+def run_train_vae(exp_file_path):
     # create an instance of ChemVAETrainingParams with default values
     # parser = argparse.ArgumentParser()
     # parser.add_argument("-e", "--exp_file",
@@ -321,15 +321,14 @@ if __name__ == '__main__':
     #                     help="exp directory", default=None)
     # args = vars(parser.parse_args())
 
-    logging_prefix_filename = "chembl_all_training"
-
     current_dir = os.getcwd()
-    args = {"exp_file": "./trained_models/all_chembl/exp.json", "directory": current_dir}  # check
+    args = {"exp_file": exp_file_path, "directory": current_dir}  # check
 
     if args["directory"] is not None:
         os.chdir(args["directory"])  # change to the directory where the experiment file is located
 
     training_params = load_params(args['exp_file'])
+    logging_prefix_filename = training_params.name
 
     # train the model
     if torch.cuda.is_available():
@@ -346,3 +345,6 @@ if __name__ == '__main__':
         train(training_params)
 
     logging.info("Training completed.")
+
+if __name__ == '__main__':
+    run_train_vae(exp_file_path="./trained_models/all_chembl/exp.json")
