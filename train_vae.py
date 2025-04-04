@@ -145,10 +145,9 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
 
     data_preprocessor.generate_training_chunks(params, n_chunks)
 
-    epochs_per_chunk = params.epochs
-    total_global_epochs = epochs_per_chunk * n_chunks
-    logging.info(f"Total number of epochs: {total_global_epochs}.")
-    epoch_start_id = chunk_start_id * epochs_per_chunk
+    total_global_epochs = params.epochs
+    epoch_start_id = params.epochs_start_idx
+    logging.info(f"Total number of epochs: {total_global_epochs}. Starting from epoch: {epoch_start_id}.")
 
     if params.paired_output:
         data_preprocessor.generate_fixed_test_pairs(chunk_size_per_loop, random_state=params.RAND_SEED)
@@ -179,7 +178,6 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
         weight_var=kl_weight,
         weight_orig=kl_weight
     )
-    gpu_logger = GPUUsageLogger(print_every=100)
 
     if torch.cuda.is_available():
         autoencoder_model = DDP(autoencoder_model, device_ids=[gpu_id])
