@@ -1,7 +1,7 @@
 import logging
 import os
 
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 
 from chemvae_train.data_utils import DataPreprocessor
@@ -30,6 +30,7 @@ def main(params: ChemVAETrainingParams, n_qsar_test_size=None):
         train_test_splits_dict=train_test_splits_dict,
         ML_reg=RandomForestRegressor(random_state=1, n_jobs=-1),
         # ML_reg=LinearRegression(),  # for debugging purpose only
+        ML_cls=RandomForestClassifier(random_state=1, n_jobs=-1),
         pairing_method=pairing_method,
         percentage_of_top_samples=0.1,  # top-performing as in top 10%
     )
@@ -70,4 +71,4 @@ def run_eval(
 
 
 if __name__ == "__main__":
-    run_eval("./trained_models/all_chembl/exp.json", 200)
+    run_eval("./trained_models/chembl4016/exp.json", 50)
