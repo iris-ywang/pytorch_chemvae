@@ -229,8 +229,6 @@ def train(params: ChemVAETrainingParams, gpu_id=0, n_gpus=None):
                 total_loss.backward()
                 optimizer.step()
 
-                gpu_logger.on_batch_end(batch_idx)
-
                 # Accumulate losses
                 train_results["loss"].append(total_loss.item() * len(X))  # Scaled by batch size
                 train_results["x_pred_loss"].append(recon_loss.item() * len(X))
