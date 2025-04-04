@@ -24,6 +24,7 @@ class ChemVAETrainingParams:
     # general parameters
     model_fit_batch_size: int = 100
     epochs: int = 1
+    epochs_start_idx: int = 0
     val_split: float = 0.1  # validation split fraction
     loss: str = "categorical_crossentropy"  # set reconstruction loss
     if_stratify: bool = False  # whether to stratify the data for training
