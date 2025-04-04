@@ -325,7 +325,7 @@ def train(params: ChemVAETrainingParams):
             if chunk_start_id == chunk_id: log_gpu_stats()
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
-        save_model(params, autoencoder_model, optimizer, chunk_id, chunk_size_per_loop, global_rank)
+        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, global_rank)
         save_optimiser(params, optimizer, global_rank)
 
         # clear memory
