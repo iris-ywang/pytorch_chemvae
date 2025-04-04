@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import logging
 
-import torch.multiprocessing as mp
 from torch import nn
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -86,7 +85,7 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
 
     if params.reload_model or evaluating:
 
-        if params.pre_trained_weights_file is not None and params.loop_over_fit_batch_id == 0:
+        if params.pre_trained_weights_file is not None and params.loop_over_fit_batch_id == 0 and not evaluating:
             weights_path = params.pre_trained_weights_file
         else:
             weights_path = params.vae_weights_file
@@ -108,7 +107,7 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
         filename = params.vae_weights_file
         chunk_batch_filename = params.vae_weights_file[:-4] + f"_{(batch_id + 1) * batch_size_per_loop}.pth"
         torch.save(vae_model.state_dict(), filename)
-        if params.save_model_per_chunk:
+        if params.save_model_per_epoch:
             torch.save(vae_model.state_dict(), chunk_batch_filename)
         else:
             chunk_batch_filename = ""
@@ -120,6 +119,17 @@ def save_model(params, vae_model, batch_id, batch_size_per_loop, gpu_id=None):
         logging.info(f"Model weights saved to {filename}. \n")
 
 
+def save_optimiser(params, optimizer, gpu_id=None):
+    """Save the optimizer state for the training process. If gpu_id is not None, save only for gpu_id 0."""
+    if torch.cuda.is_available():
+        if gpu_id != 0:
+            return
+    if params.optimiser_file:
+        filename = params.optimiser_file
+        torch.save(optimizer.state_dict(), filename)
+        logging.info(f"Optimizer state saved to {filename}. \n")
+
+
 def train(params: ChemVAETrainingParams):
     """Train the ChemVAE model, the full workflow."""
     # set device to cuda of id = gpu_id if available, else to cpu
@@ -127,8 +137,9 @@ def train(params: ChemVAETrainingParams):
         local_rank = int(os.environ["LOCAL_RANK"])
         global_rank = int(os.environ["RANK"])
     else:
+        local_rank = None
         global_rank = "None"
-    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
+    device = torch.device(f"cuda:{local_rank} out of {global_rank}" if torch.cuda.is_available() else "cpu")
     logging.info(f"Device: {device}")
 
     # Load data
@@ -139,6 +150,11 @@ def train(params: ChemVAETrainingParams):
         data_preprocessor.get_model_fit_chunk_size_and_starting_chunk_id(params)
 
     data_preprocessor.generate_training_chunks(params, n_chunks)
+
+    epochs_per_chunk = params.epochs
+    total_global_epochs = epochs_per_chunk * n_chunks
+    logging.info(f"Total number of epochs: {total_global_epochs}.")
+    epoch_start_id = chunk_start_id * epochs_per_chunk
 
     if params.paired_output:
         data_preprocessor.generate_fixed_test_pairs(chunk_size_per_loop, random_state=params.RAND_SEED)
@@ -162,7 +178,9 @@ def train(params: ChemVAETrainingParams):
     kl_weight = params.kl_loss_weight  # Initial weight for KL loss
     weight_annealer = WeightAnnealer(
         schedule=lambda epoch: sigmoid_schedule(
-            epoch, slope=params.anneal_sigmod_slope, start=params.vae_annealer_start
+            epoch,
+            slope=30 / total_global_epochs,
+            start=total_global_epochs / 2.5,
         ),
         weight_var=kl_weight,
         weight_orig=kl_weight
@@ -174,27 +192,28 @@ def train(params: ChemVAETrainingParams):
 
     # ##
     # Training loop - chunk by chunk
-    for chunk_id in range(chunk_start_id, n_chunks):
-        print(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
+    for epoch in range(epoch_start_id, total_global_epochs):
+        print(f"Training epoch {epoch} out of {total_global_epochs}.")
+        weight_annealer.on_epoch_begin(epoch)
 
-        # load chunk size data
-        data_preprocessor.X_all = None  # clear memory
-        X_train_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
-            if_paired=params.paired_output,
-            current_chunk_id=chunk_id,
-        )
-        batch_size = params.model_fit_batch_size
-        train_loader = load_data(
-            model_fit_batch_size=batch_size,
-            X=X_train_chunk,
-        )
+        for chunk_id in range(chunk_start_id, n_chunks):
+            print(f"Training batch id over model fit func: {chunk_id} out of {n_chunks}")
 
-        num_train_samples = len(train_loader.dataset)
+            # load chunk size data
+            data_preprocessor.X_all = None  # clear memory
+            X_train_chunk = data_preprocessor.generate_loop_chunk_data_for_model_fit(
+                if_paired=params.paired_output,
+                current_chunk_id=chunk_id,
+            )
+            batch_size = params.model_fit_batch_size
+            train_loader = load_data(
+                model_fit_batch_size=batch_size,
+                X=X_train_chunk,
+            )
 
-        for epoch in range(params.epochs):
+            num_train_samples = len(train_loader.dataset)
+
             train_results = {"loss": [], "x_pred_loss": [], "kl_loss": [], "similarity_loss": [], "categorical_accuracy": []}
-            weight_annealer.on_epoch_begin(epoch)
-
             # for loop over train_loader with both ith batch_idx and ith X data
             for batch_idx, X in enumerate(train_loader):
                 autoencoder_model.train()
@@ -235,7 +254,7 @@ def train(params: ChemVAETrainingParams):
             train_accuracy = sum(train_results["categorical_accuracy"]) / len(train_results["categorical_accuracy"])
 
             print(
-                f"Current chunk: {chunk_id}, epoch: {epoch}, gpu: {global_rank}\n; "
+                f"Current chunk: {chunk_id}, epoch: {epoch}, gpu: {global_rank}: \n "
                 f"Average Train loss: {train_loss}, x_pred_loss: {train_x_pred_loss}, "
                 f"kl_loss: {train_kl_loss}, similarity_loss: {train_similarity_loss}, "
                 f"accuracy: {train_accuracy}.")
@@ -282,6 +301,7 @@ def train(params: ChemVAETrainingParams):
                     epoch_results = {
                         "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "epoch": epoch,
+                        "chunk": chunk_id,
                         "loss": train_loss,
                         "val_loss": val_loss,
                         "val_x_pred_loss": val_x_pred_loss,
@@ -302,10 +322,11 @@ def train(params: ChemVAETrainingParams):
                     writer.writerow(epoch_results)
                 print(f"Epoch-level evaluation results on test data type {key}: ", epoch_results)
             print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            if epoch == 0: log_gpu_stats()
+            if chunk_start_id == chunk_id: log_gpu_stats()
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
-        save_model(params, autoencoder_model, chunk_id, chunk_size_per_loop, local_rank)
+        save_model(params, autoencoder_model, optimizer, chunk_id, chunk_size_per_loop, global_rank)
+        save_optimiser(params, optimizer, global_rank)
 
         # clear memory
         del train_loader

@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.metrics import precision_score, recall_score, f1_score
 from submodules.pairwise_formulation.pairwise_data import PairwiseDataInfo
 
@@ -76,7 +77,20 @@ class ExtrapolationEvaluation:
                 tests_better_than_top_train_true, tests_better_than_top_train
             )
 
-            return [precision_top, recall_top, f1_top,
-                    precision_better, recall_better, f1_better]
+            return pd.Series({
+                "precision_top": precision_top,
+                "recall_top": recall_top,
+                "f1_top": f1_top,
+                "precision_better": precision_better,
+                "recall_better": recall_better,
+                "f1_better": f1_better
+            })
         else:
-            return [np.nan for _ in range(6)]
+            return pd.Series({
+                "precision_top": np.nan,
+                "recall_top": np.nan,
+                "f1_top": np.nan,
+                "precision_better": np.nan,
+                "recall_better": np.nan,
+                "f1_better": np.nan
+            })

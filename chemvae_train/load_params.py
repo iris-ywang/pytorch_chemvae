@@ -28,7 +28,7 @@ class ChemVAETrainingParams:
     loss: str = "categorical_crossentropy"  # set reconstruction loss
     if_stratify: bool = False  # whether to stratify the data for training
     if_smiles: bool = True  # whether to use SMILES strings for training
-    save_model_per_chunk: bool = True  # whether to save model per chunk
+    save_model_per_epoch: bool = True  # whether to save model per chunk
 
     # convolution parameters
     batchnorm_conv: bool = True
@@ -102,6 +102,7 @@ class ChemVAETrainingParams:
     data_file: str = None  # data file name/path
     vae_weights_file: str = None  # model weights file name/path
     pre_trained_weights_file: str = None # pre-trained model weights file name/path
+    optimiser_file: str = "optimiser.pt"
     test_idx_file: str = None
     history_file: str = None
     checkpoint_path: str = None

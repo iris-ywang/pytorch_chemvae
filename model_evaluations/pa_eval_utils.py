@@ -32,14 +32,13 @@ def run(
                 target_value_col_name=target_value_col_name,
             )
             metrics_per_fold["fold_id"] = fold_id
-            logging.info(f"Metrics for fold {fold_id}: {metrics_per_fold}")
+            logging.info(f"Metrics for fold {fold_id}: \n {metrics_per_fold.to_string()}")
             metrics_per_dataset.append(metrics_per_fold)
 
         all_metrics = pd.concat(metrics_per_dataset)
         mean_metrics = all_metrics.drop(columns=["fold_id"]).groupby(all_metrics.index).mean().head()
-        print(all_metrics)
         print()
-        print(mean_metrics)
+        print(mean_metrics.to_string())
 
         return mean_metrics, all_metrics
 
@@ -109,7 +108,7 @@ def results_of_pairwise_combinations(
         rank_method=rating_trueskill,
         percentage_of_top_samples=0.1,
 ):
-    results_dict = {}
+    results_df = pd.DataFrame()
     if pairwise_model.ML_cls is not None:
         logging.info("Extrapolation performance evaluation...")
         y_ranking_c2 = pairwise_model.predict_rank(
@@ -123,7 +122,7 @@ def results_of_pairwise_combinations(
             y_train_with_predicted_test=y_ranking_c2,
             pairwise_data_info=pairwise_model.pairwise_data_info,
         ).run_extrapolation_evaluation()
-        results_dict["rank_metrics_c2"] = metrics_c2
+        results_df["rank_metrics_c2"] = metrics_c2
 
         y_ranking_c2_c3 = pairwise_model.predict_rank(
             ranking_method=rank_method,
@@ -136,7 +135,7 @@ def results_of_pairwise_combinations(
             y_train_with_predicted_test=y_ranking_c2_c3,
             pairwise_data_info=pairwise_model.pairwise_data_info,
         ).run_extrapolation_evaluation()
-        results_dict["rank_metrics_c2_c3"] = metrics_c2_c3
+        results_df["rank_metrics_c2_c3"] = metrics_c2_c3
 
         y_ranking_c1_c2_c3 = pairwise_model.predict_rank(
             ranking_method=rank_method,
@@ -149,13 +148,13 @@ def results_of_pairwise_combinations(
             y_train_with_predicted_test=y_ranking_c1_c2_c3,
             pairwise_data_info=pairwise_model.pairwise_data_info,
         ).run_extrapolation_evaluation()
-        results_dict["rank_metrics_c1_c2_c3"] = metrics_c1_c2_c3
+        results_df["rank_metrics_c1_c2_c3"] = metrics_c1_c2_c3
 
         # Regressive prediction performance evaluation:
-        if not if_rank_with_dist:
-            metrics_est = [np.nan for _ in range(6)]
-
-        results_dict["reg_metrics_from_sbbr"] = metrics_est
+        # if not if_rank_with_dist:
+        #     metrics_est = [np.nan for _ in range(6)]
+        #
+        # results_dict["reg_metrics_from_sbbr"] = metrics_est
 
     if pairwise_model.ML_reg is not None:
         logging.info("Pairwise regressive performance evaluation...")
@@ -172,8 +171,10 @@ def results_of_pairwise_combinations(
             pairwise_model.pairwise_data_info.test_ary[:, 0],
             y_est
         )
-        results_dict["reg_metrics_c2"] = metrics_est
-    return results_dict
+        metrics_est.name = "reg_metrics_c2"
+        results_df = pd.concat([results_df, metrics_est], axis=1)
+
+    return results_df
 
 
 def metrics_evaluation(y_true, y_predict):
@@ -182,7 +183,7 @@ def metrics_evaluation(y_true, y_predict):
     mae = mean_absolute_error(y_true, y_predict)
     r2 = r2_score(y_true, y_predict)
     # return [rho, mse, mae, r2, np.nan, np.nan]
-    return {"rho": rho, "mse": mse, "mae": mae, "r2": r2}
+    return pd.Series({"rho": rho, "mse": mse, "mae": mae, "r2": r2})
 
 
 def estimate_y_from_averaging(Y_pa_c2, c2_test_pair_ids, test_ids, y_true, Y_weighted=None):
