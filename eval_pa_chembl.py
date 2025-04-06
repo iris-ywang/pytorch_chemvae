@@ -42,10 +42,6 @@ def run_eval(
         specific_dataset_path=None,
         specific_model_path=None,
 ):
-    logging.basicConfig(
-        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    logging.info("Logging started.")
 
     current_dir = os.getcwd()
     args = {"exp_file": exp_file_path, "directory": current_dir}
@@ -71,4 +67,8 @@ def run_eval(
 
 
 if __name__ == "__main__":
-    run_eval("./trained_models/chembl4016/exp.json", 50)
+    logging.basicConfig(
+        level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logging.info("Logging started.")
+    run_eval("./trained_models/chembl4016/exp.json", 40)
