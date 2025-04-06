@@ -36,7 +36,7 @@ def run(
             metrics_per_dataset.append(metrics_per_fold)
 
         all_metrics = pd.concat(metrics_per_dataset)
-        mean_metrics = all_metrics.drop(columns=["fold_id"]).groupby(all_metrics.index).mean().head()
+        mean_metrics = all_metrics.drop(columns=["fold_id"]).groupby(all_metrics.index).mean(numeric_only=True)
         print()
         print(mean_metrics.to_string())
 
