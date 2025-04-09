@@ -22,7 +22,7 @@
   "hg_growth_factor": 1.2281884874932403,
   "middle_layer": 1,
   "momentum": 0.97170900638688007,
-  "reload_model": true,
+  "reload_model": false,
   "paired_output": true,
   "data_size_for_all_loops": 2500,
   "loop_over_fit_batch_size": 500,
