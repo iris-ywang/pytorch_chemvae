@@ -30,7 +30,7 @@
   "loop_over_fit_batch_id": 0,
   "model_fit_batch_size": 100,
   "if_stratify": true,
-  "val_split": 0.05985,
+  "val_split": 0.0399,
   "if_smiles": false,
 
   "fp_siamese_depth": 3,
