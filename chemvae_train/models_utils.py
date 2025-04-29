@@ -155,8 +155,8 @@ class GPUUsageLogger:
 
 def log_gpu_stats():
     """Logs GPU stats using global rank."""
-    rank = int(os.environ["RANK"])  # Global rank
     if torch.cuda.is_available():
+        rank = int(os.environ["RANK"])  # Global rank
         device = torch.device("cuda")
         total_memory = torch.cuda.get_device_properties(device).total_memory
         reserved_memory = torch.cuda.memory_reserved(device)
@@ -173,7 +173,7 @@ def log_gpu_stats():
         print(torch.cuda.memory_summary())
 
     else:
-        print(f"[Global Rank {rank}] No CUDA device available.")
+        print(f"No CUDA device available for GPU statues.")
 
 
 def categorical_crossentropy_tf(pred, target):

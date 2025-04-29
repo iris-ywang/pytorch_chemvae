@@ -170,6 +170,10 @@ def train(params: ChemVAETrainingParams):
     # compile the autoencoder model
     loss_function = nn.BCEWithLogitsLoss()
     optimizer = load_optimiser(params)(autoencoder_model.parameters())
+    if params.optimiser_file and os.path.exists(params.optimiser_file):
+        optimizer.load_state_dict(torch.load(params.optimiser_file))
+        logging.info(f"Optimizer state loaded from {params.optimiser_file}.")
+
     torch.nn.utils.clip_grad_norm_(autoencoder_model.parameters(), max_norm=1.0)
 
     # set up callbacks
