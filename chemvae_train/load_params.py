@@ -89,6 +89,12 @@ class ChemVAETrainingParams:
     fp_dropout_rate: float = 0.1
     fp_activation: str = "relu"
 
+    # For one-way FP encoder model:
+    if_fp_one_way: bool = False
+    fp_n_activity_layers: int = 2
+    fp_activity_layer_size_scalar: float = 1.0
+    fp_activity_dropout_rate: float = 0.1
+
     # fp_loss_weight is used to scale the similarity loss
     fp_loss_weight: float = 1.0
 
@@ -103,7 +109,7 @@ class ChemVAETrainingParams:
     data_file: str = None  # data file name/path
     vae_weights_file: str = None  # model weights file name/path
     pre_trained_weights_file: str = None # pre-trained model weights file name/path
-    optimiser_file: str = "optimiser.pt"
+    optimiser_file: str = None
     test_idx_file: str = None
     history_file: str = None
     checkpoint_path: str = None

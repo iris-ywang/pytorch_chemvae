@@ -239,3 +239,156 @@ class FPVAEAutoEncoder(nn.Module):
         z_samp, z_mean_log_var_output = self.encoder(x)
         x_out = self.decoder(z_samp)
         return x_out, z_mean_log_var_output
+
+
+class FPEncoderToDeltaY(nn.Module):
+    def __init__(self, params: ChemVAETrainingParams):
+        super(FPEncoderToDeltaY, self).__init__()
+        self.params = params
+        self.siamese_layers = nn.ModuleList()
+        self.middle_layers = nn.ModuleList()
+        self.activity_layers = nn.ModuleList()
+
+        siamse_dim_list = []
+        siamse_dim_list.append(params.data_width)
+
+        self.siamese_layers.append(nn.Linear(
+            in_features=params.data_width,
+            out_features=int(params.data_width * params.fp_hidden_dim_reduction_rate),
+        ))
+        siamese_previous_n_out_features = int(params.data_width * params.fp_hidden_dim_reduction_rate)
+        siamse_dim_list.append(siamese_previous_n_out_features)
+
+        # add activation function
+        self.siamese_layers.append(add_activation(params.fp_activation))
+        if params.fp_dropout_rate > 0.0:
+            self.siamese_layers.append(nn.Dropout(params.fp_dropout_rate))
+        if params.batchnorm_conv:
+            self.siamese_layers.append(nn.BatchNorm1d(
+                num_features=siamese_previous_n_out_features))
+
+        for i in range(params.fp_siamese_depth - 1):
+            self.siamese_layers.append(nn.Linear(
+                in_features=siamese_previous_n_out_features,
+                out_features=int(siamese_previous_n_out_features * params.fp_hidden_dim_reduction_rate),
+            ))
+
+            siamese_previous_n_out_features = int(siamese_previous_n_out_features * params.fp_hidden_dim_reduction_rate)
+            siamse_dim_list.append(siamese_previous_n_out_features) #[1024, 512, 256, 128]
+
+            # add activation function
+            self.siamese_layers.append(add_activation(params.fp_activation))
+            if params.fp_dropout_rate > 0.0:
+                self.siamese_layers.append(nn.Dropout(params.fp_dropout_rate))
+            if params.batchnorm_conv:
+                self.siamese_layers.append(nn.BatchNorm1d(
+                    num_features=siamese_previous_n_out_features))
+
+
+        # Middle layers
+        concat_features = siamese_previous_n_out_features * 3
+        middle_dim_list = [concat_features]
+        for i in range(params.fp_concat_depth - 1):
+            self.middle_layers.append(nn.Linear(
+                in_features=concat_features,
+                out_features=int(concat_features * params.fp_hidden_dim_reduction_rate),
+            ))
+            concat_features = int(concat_features * params.fp_hidden_dim_reduction_rate)
+            middle_dim_list.append(concat_features)
+
+            # add activation function
+            self.middle_layers.append(add_activation(params.fp_activation))
+
+            if params.fp_hidden_dim_reduction_rate > 0:
+                self.middle_layers.append(nn.Dropout(params.fp_dropout_rate))
+            if params.batchnorm_mid:
+                self.middle_layers.append(nn.BatchNorm1d(
+                    num_features=concat_features))
+
+        # z_mean, map to latent rep
+        self.z_mean = nn.Linear(concat_features, params.hidden_dim)
+
+        activity_dim = params.hidden_dim
+        n_activity_layers = params.fp_n_activity_layers
+        activity_mid_layer_dim = int(activity_dim * params.fp_activity_layer_size_scalar)
+
+        # Activity layers
+        for i in range(n_activity_layers - 1):
+            if i == 0:
+                dim_in = activity_dim
+                dim_out = activity_mid_layer_dim
+            else:
+                dim_in = activity_mid_layer_dim
+                dim_out = activity_mid_layer_dim
+
+            self.activity_layers.append(nn.Linear(
+                in_features=dim_in,
+                out_features=dim_out,
+            ))
+
+            # add activation function
+            self.activity_layers.append(add_activation(params.fp_activation))
+            if params.fp_activity_dropout_rate > 0:
+                self.activity_layers.append(nn.Dropout(params.fp_activity_dropout_rate))
+            if params.batchnorm_mid:
+                self.activity_layers.append(nn.BatchNorm1d(
+                    num_features=dim_out))
+
+        self.activity_layers.append(nn.Linear(
+            in_features=activity_mid_layer_dim,
+            out_features=1,
+        ))
+
+        dummy_input = torch.zeros(5, params.data_width, 2)
+        self._get_flattened_size(dummy_input)
+
+    def _get_flattened_size(self, x):
+        x1 = x[:, :, 0]
+        x2 = x[:, :, 1]
+
+        # Pass the tensor through the Siamese layers first
+        for siamese in self.siamese_layers:
+            x1 = siamese(x1)
+            x2 = siamese(x2)
+            print(x1.size())
+
+        # Concatenate the two tensors and their difference into a single tensor
+        x = torch.cat((x1, x2, x1 - x2), 1)
+        print("Concatenated middle layer:", x.size())
+        # Pass the concatenated tensor through the normal layers
+        for norm in self.middle_layers:
+            x = norm(x)
+            print(x.size())
+
+        z = self.z_mean(x)
+
+        print("Activity layers' size: ", z.size())
+        for activity in self.activity_layers:
+            z = activity(z)
+
+        output_size = z.size()
+        print(output_size)
+
+    def forward(self, x):
+        # get x1, x2 from x by the last dimension which should only be 2.
+        x1 = x[:, :, 0]
+        x2 = x[:, :, 1]
+
+        # Pass the tensor through the Siamese layers first
+        for siamese in self.siamese_layers:
+            x1 = siamese(x1)
+            x2 = siamese(x2)
+
+        # Concatenate the two tensors and their difference into a single tensor
+        x = torch.cat((x1, x2, x1 - x2), 1)
+
+        # Pass the concatenated tensor through the normal layers
+        for norm in self.middle_layers:
+            x = norm(x)
+
+        z = self.z_mean(x)
+
+        for activity in self.activity_layers:
+            z = activity(z)
+
+        return z
