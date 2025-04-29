@@ -194,7 +194,7 @@ class DataPreprocessor:
 
         return test_set_pairs
 
-    def generate_loop_chunk_data_for_model_fit(self, if_paired, current_chunk_id):
+    def generate_loop_chunk_data_for_model_fit(self, if_paired, current_chunk_id, if_required_y: bool=False):
         """
 
         Args:
@@ -219,15 +219,29 @@ class DataPreprocessor:
             f"Training loop chunk index is the {current_chunk_id}th starting from index {chunk_indices[0]} \n"
         )
 
+        if if_required_y:
+            logging.info("Generating y_train data for this training loop.")
+            y_train_all = np.array(self.Xy_train_all)[:, 0:1]
+            y_train = y_train_all[chunk_indices]
+
         # if paired_output is True, make pairs of the input data
         if if_paired:
-            X_train = self.make_permutation_pairs(X_train)
-        logging.info(f"Size of training size: {X_train.shape}")
-
+            X_train = self.make_permutation_pairs(X_train)  # if chembl, shape=(n_samples, 1024, 2)
         # checking for NaN values in the data
         self._check_nan_value_in_array(X_train)
+        logging.info(f"Size of training size: {X_train.shape}")
 
-        return X_train
+        if if_paired & if_required_y:
+            y_train_concat = self.make_permutation_pairs(y_train)  # shape=(n_samples, 1, 2)
+            y_train = (
+                    y_train_concat[:,0, 0] - y_train_concat[:, 0, 1]
+            ).reshape(-1, 1) # shape=(n_samples, 1)
+
+            self._check_nan_value_in_array(y_train)
+            return (X_train, y_train)
+        else:
+            return X_train
+
 
     @staticmethod
     def _check_nan_value_in_array(X: np.array):
@@ -304,6 +318,8 @@ class DataPreprocessor:
         return chunk_indice
 
     def generate_fixed_test_pairs(self, chunk_size: int, random_state=20):
+
+        # TODO: add if_required_y logics
         if self.training_chunk_indice is None:
             raise ValueError("Training chunk indices are not generated yet. "
                              "Please run generate_training_chunks() first")
