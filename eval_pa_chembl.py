@@ -21,11 +21,11 @@ def main(params: ChemVAETrainingParams, n_qsar_test_size=None):
     train_test = data_preprocessor.X_all[:int(n_qsar_test_size)]
 
     # Load the FP VAE model
-    fp_autoencoder = load_model(params, evaluating=True)
+    # fp_autoencoder = load_model(params, evaluating=True)
+    # pairing_method = LatentRepViaFPVAE(fp_autoencoder, params.hidden_dim).get_latent_rep
 
     # Prepare pairs
     train_test_splits_dict = kfold_splits(train_test=train_test, fold=10)
-    # pairing_method = LatentRepViaFPVAE(fp_autoencoder, params.hidden_dim).get_latent_rep
     pairing_method = ChEMBLToDeltaYNN.make_pairs_from_all_data_and_pair_ids
 
     metrics_per_dataset = run(
