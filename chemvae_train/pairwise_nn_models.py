@@ -42,21 +42,27 @@ class ChEMBLToDeltaYNN:
         if torch.cuda.is_available():
             world_size = torch.cuda.device_count()
             logging.info(f"World size: {world_size}. Training with Torchrun.")
-            self_obj = mp.spawn(
+            mp.spawn(
                 self._mp_train_wrapper, args=(world_size, X, y),
                 nprocs=world_size, join=True
             )
+
+            # Reloading temporarily save model from mp training
+            # Load the model trained by rank 0
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            self.model = load_model(self.params).to(device)
+            self.model.load_state_dict(torch.load("_trained_model_temp_file.pt", map_location=device))
+
         else:
             logging.info("No GPU available. Using CPU.")
             self.train(X, y)
-
-        input(f"self.model type: {type(self.model)}")
-        input(f"mp_wrapper_self_obj: {type(self_obj.model)}")
-        return self_obj
+        return self
 
     def _mp_train_wrapper(self, rank: int, world_size: int, X, y):
         ddp_setup(rank=rank, world_size=world_size)
         self.train(X, y, gpu_id=rank)
+        if rank == 0:
+            torch.save(self.model.state_dict(), "_trained_model_temp_file.pt")
         destroy_process_group()
         return self
 
