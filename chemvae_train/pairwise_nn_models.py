@@ -42,19 +42,23 @@ class ChEMBLToDeltaYNN:
         if torch.cuda.is_available():
             world_size = torch.cuda.device_count()
             logging.info(f"World size: {world_size}. Training with Torchrun.")
-            mp.spawn(
+            self_obj = mp.spawn(
                 self._mp_train_wrapper, args=(world_size, X, y),
                 nprocs=world_size, join=True
             )
         else:
             logging.info("No GPU available. Using CPU.")
             self.train(X, y)
-        return self
+
+        input(f"self.model type: {type(self.model)}")
+        input(f"mp_wrapper_self_obj: {type(self_obj.model)}")
+        return self_obj
 
     def _mp_train_wrapper(self, rank: int, world_size: int, X, y):
         ddp_setup(rank=rank, world_size=world_size)
         self.train(X, y, gpu_id=rank)
         destroy_process_group()
+        return self
 
     def train(self, X, y, gpu_id=0):
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
@@ -91,12 +95,12 @@ class ChEMBLToDeltaYNN:
             X=Xy_train,
         )
 
-        train_results = {"loss": [], "y_pred_mse": [], "y_pred_sign": []}
         print(f"(MSE weight, Sign loss scalar) = {weighted_total_loss.__defaults__}")
         for epoch in range(epoch_start_id, total_global_epochs):
             print(f"Training epoch {epoch} out of {total_global_epochs}.")
             # for loop over train_loader with both ith batch_idx and ith X data
             num_train_samples = len(train_loader.dataset)
+            train_results = {"loss": [], "y_pred_mse": [], "y_pred_sign": []}
             for batch_idx, X in enumerate(train_loader):
                 oneway_model.train()
                 optimizer.zero_grad()
