@@ -6,6 +6,7 @@ from sklearn.linear_model import LinearRegression
 
 from chemvae_train.data_utils import DataPreprocessor
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
+from chemvae_train.pairwise_nn_models import ChEMBLToDeltaYNN
 from model_evaluations.pa_eval_utils import LatentRepViaFPVAE, run
 from submodules.pairwise_formulation.pa_basics.import_data import kfold_splits
 from train_vae import load_model
@@ -24,13 +25,15 @@ def main(params: ChemVAETrainingParams, n_qsar_test_size=None):
 
     # Prepare pairs
     train_test_splits_dict = kfold_splits(train_test=train_test, fold=10)
-    pairing_method = LatentRepViaFPVAE(fp_autoencoder, params.hidden_dim).get_latent_rep
+    # pairing_method = LatentRepViaFPVAE(fp_autoencoder, params.hidden_dim).get_latent_rep
+    pairing_method = ChEMBLToDeltaYNN.make_pairs_from_all_data_and_pair_ids
 
     metrics_per_dataset = run(
         train_test_splits_dict=train_test_splits_dict,
-        ML_reg=RandomForestRegressor(random_state=1, n_jobs=-1),
+        SA_ML_reg=RandomForestRegressor(random_state=1, n_jobs=-1),  # for predecessor comparison
         # ML_reg=LinearRegression(),  # for debugging purpose only
-        ML_cls=RandomForestClassifier(random_state=1, n_jobs=-1),
+        ML_reg=ChEMBLToDeltaYNN(params),
+        # ML_cls=RandomForestClassifier(random_state=1, n_jobs=-1),
         pairing_method=pairing_method,
         percentage_of_top_samples=0.1,  # top-performing as in top 10%
     )
@@ -71,4 +74,4 @@ if __name__ == "__main__":
         level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
     )
     logging.info("Logging started.")
-    run_eval("./trained_models/chembl4016/exp.json", 40)
+    run_eval("./trained_models/chembl204/exp_oneway.json", 100)
