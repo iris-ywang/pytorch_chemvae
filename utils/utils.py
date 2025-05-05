@@ -4,8 +4,9 @@ from datetime import datetime
 
 def logging_set_up(logging_filename_prefix: str = None, save_log_file: bool = True):
     # config logging to be compatible with the pytorch
-    if (logging_filename_prefix is not None) & (not logging_filename_prefix.endswith("_")):
-        logging_filename_prefix = f"{logging_filename_prefix}_"
+    if (logging_filename_prefix is not None):
+        if not logging_filename_prefix.endswith("_"):
+            logging_filename_prefix = f"{logging_filename_prefix}_"
     else:
         logging_filename_prefix = ""
 
