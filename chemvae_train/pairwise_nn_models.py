@@ -2,6 +2,9 @@ import os
 import logging
 
 import numpy as np
+import torch.multiprocessing as mp
+
+from torch.distributed import destroy_process_group
 from torch.utils.data import TensorDataset
 
 from chemvae_train.data_utils import DataPreprocessor, get_x_and_y_from_paired_data_in_vstacked_shape
@@ -20,56 +23,9 @@ class ChEMBLToDeltaYNN:
 
     def __init__(self, params: ChemVAETrainingParams):
         self.params = params
-
-        # set up training model
+        self.optimizer = None
+        self.model = None
         logger = logging_set_up()  # check
-
-        if torch.cuda.is_available():
-            ddp_setup()
-            local_rank = int(os.environ["LOCAL_RANK"])
-            global_rank = int(os.environ["RANK"])
-        else:
-            local_rank = None
-            global_rank = "None"
-        device = torch.device(f"cuda:{local_rank} out of {global_rank}" if torch.cuda.is_available() else "cpu")
-        logging.info(f"Device: {device}")
-
-        oneway_model = load_model(params).to(device)
-
-        optimizer = load_optimiser(params)(oneway_model.parameters())
-        if params.optimiser_file and os.path.exists(params.optimiser_file):
-            optimizer.load_state_dict(torch.load(params.optimiser_file))
-            logging.info(f"Optimizer state loaded from {params.optimiser_file}.")
-
-        # compile the single way model which compresses the pair of FP first and then forward to the y values.
-        # using MSE loss for the y values
-        self.loss_function_mse = nn.MSELoss(reduction="sum")
-        self.loss_function_crossentropy = nn.CrossEntropyLoss()
-        torch.nn.utils.clip_grad_norm_(oneway_model.parameters(), max_norm=1.0)
-
-        self.model = oneway_model
-        self.optimizer = optimizer
-        self.device = device
-        self.global_rank = global_rank
-        self.local_rank = local_rank
-
-    @staticmethod
-    def make_pairs_from_data(train_data, if_y_included=True, test_data=None):
-        """
-        Create pairs from the data.
-        """
-        # Implement your logic to create pairs from the data
-        data_processor = DataPreprocessor()
-        if test_data is None:
-            # making permutation pairs, can be either train data or test data
-            X = data_processor.make_permutation_pairs(train_data)
-
-        else:
-            # making combination pairs, can only be test data
-            X = data_processor.make_combination_pairs(train_data, test_data)
-
-        X, Y = get_x_and_y_from_paired_data_in_vstacked_shape(X, if_y_included=if_y_included)
-        return X, Y
 
     @staticmethod
     def make_pairs_from_all_data_and_pair_ids(data: np.array, pair_ids: list):
@@ -82,15 +38,48 @@ class ChEMBLToDeltaYNN:
         X, Y = get_x_and_y_from_paired_data_in_vstacked_shape(X)
         return X, Y
 
-
     def fit(self, X, y):
         if torch.cuda.is_available():
             world_size = torch.cuda.device_count()
             logging.info(f"World size: {world_size}. Training with Torchrun.")
+            mp.spawn(
+                self._mp_train_wrapper, args=(world_size, X, y),
+                nprocs=world_size, join=True
+            )
+        else:
+            logging.info("No GPU available. Using CPU.")
+            self.train(X, y)
+        return self
 
-        oneway_model = self.model
-        optimizer = self.optimizer
-        device = self.device
+    def _mp_train_wrapper(self, rank: int, world_size: int, X, y):
+        ddp_setup(rank=rank, world_size=world_size)
+        self.train(X, y, gpu_id=rank)
+        destroy_process_group()
+
+    def train(self, X, y, gpu_id=0):
+        device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+        logging.info(f"Device: {device}")
+
+        params = self.params
+
+        if self.model is None:
+            oneway_model = load_model(params).to(device)
+        else:
+            oneway_model = self.model.to(device)
+
+        if self.optimizer is None:
+            optimizer = load_optimiser(params)(oneway_model.parameters())
+            if params.optimiser_file and os.path.exists(params.optimiser_file):
+                optimizer.load_state_dict(torch.load(params.optimiser_file))
+                logging.info(f"Optimizer state loaded from {params.optimiser_file}.")
+        else:
+            optimizer = self.optimizer
+
+        # compile the single way model which compresses the pair of FP first and then forward to the y values.
+        # using MSE loss for the y values
+        self.loss_function_mse = nn.MSELoss(reduction="sum")
+        self.loss_function_crossentropy = nn.CrossEntropyLoss()
+        torch.nn.utils.clip_grad_norm_(oneway_model.parameters(), max_norm=1.0)
 
         total_global_epochs = self.params.epochs
         epoch_start_id = self.params.epochs_start_idx
@@ -133,7 +122,7 @@ class ChEMBLToDeltaYNN:
             train_y_pred_mse = sum(train_results["y_pred_mse"]) / num_train_samples
             train_y_pred_sign = sum(train_results["y_pred_sign"]) / num_train_samples
             print(
-                f"Current epoch: {epoch}, gpu: {self.global_rank}: \n "
+                f"Current epoch: {epoch}, gpu: {gpu_id}: \n "
                 f"Average Train loss: {train_loss}, train_y_pred_mse: {train_y_pred_mse}, "
                 f"train_y_pred_sign: {train_y_pred_sign}. ")
 

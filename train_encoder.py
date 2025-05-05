@@ -15,9 +15,7 @@ from torch.utils.data import TensorDataset
 
 from chemvae_train.fp_models import FPEncoderToDeltaY
 from chemvae_train.load_params import ChemVAETrainingParams, load_params
-from chemvae_train.models_utils import (
-    log_gpu_stats,
-)
+
 from chemvae_train.data_utils import DataPreprocessor
 from utils.utils import (
     logging_set_up,
@@ -262,7 +260,6 @@ def train(params: ChemVAETrainingParams):
                         "val_loss": val_loss,
                         "val_y_pred_mse": val_y_mse_loss,
                         "val_y_pred_sign": val_y_sign_loss,
-                        "weight": mse_weight,
                         "y_pred_mse": train_y_pred_mse,
                         "y_pred_sign": train_y_pred_sign,
                         "Test set type": key,
@@ -274,7 +271,6 @@ def train(params: ChemVAETrainingParams):
                     writer.writerow(epoch_results)
                 print(f"Epoch-level evaluation results on test data type {key}: ", epoch_results)
             print("Evaluation end time: ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            if chunk_start_id == chunk_id: log_gpu_stats()
 
         logging.info(f"Training batch id {chunk_id} completed. Saving model weights.")
         save_model(params, oneway_model, chunk_id, chunk_size_per_loop, global_rank)
