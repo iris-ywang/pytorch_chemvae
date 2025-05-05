@@ -194,6 +194,19 @@ class DataPreprocessor:
 
         return test_set_pairs
 
+    @staticmethod
+    def make_pair_array_from_pair_ids(train_test: np.array, pair_ids: list):
+        if len(train_test.shape) == 2:
+            train_test = np.expand_dims(train_test, axis=2)
+        train_set_size, train_set_length, train_set_dim = train_test.shape
+        train_set_pairs = np.zeros((
+            len(pair_ids), train_set_length, 2 * train_set_dim
+        ))
+        for pair_id in range(len(pair_ids)):
+            i, j = pair_ids[pair_id]
+            train_set_pairs[pair_id] = np.concatenate((train_test[i], train_test[j]), axis=1)
+        return train_set_pairs
+
     def generate_loop_chunk_data_for_model_fit(self, if_paired, current_chunk_id, if_required_y: bool=False):
         """
 
@@ -401,3 +414,13 @@ class DataPreprocessor:
             )
 
         return sampled_indices[:N]
+
+
+def get_x_and_y_from_paired_data_in_vstacked_shape(Xp_train, if_y_included=True):
+    if if_y_included:
+        y_pair = Xp_train[:, 0, :]  # shape: (n_samples, 2)
+        delta_y = (y_pair[:, 0] - y_pair[:, 1]).reshape(-1, 1)  # shape: (n_samples, 1)
+        Xp_train = Xp_train[:, 1:, :]  # shape: (n_samples, n_features - 1, 2)
+    else:
+        delta_y = None
+    return Xp_train, delta_y

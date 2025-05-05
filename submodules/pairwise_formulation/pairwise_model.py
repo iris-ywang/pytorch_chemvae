@@ -32,7 +32,12 @@ class PairwiseModel():
             data=self.pairwise_data_info.train_test,
             pair_ids=self.pairwise_data_info.c1_test_pair_ids
         )
-        self.Y_values.Y_pa_c1_true = list(train_pairs[:, 0])
+        if isinstance(train_pairs, tuple):
+            train_pairs, y_data = train_pairs
+            self.Y_values.Y_pa_c1_true = y_data[:, 0]
+        else:
+            y_data = None
+            self.Y_values.Y_pa_c1_true = list(train_pairs[:, 0])
 
         if self.ML_reg is not None:
             logging.info("Training regression model on Y...")
@@ -40,10 +45,11 @@ class PairwiseModel():
                 model=self.ML_reg,
                 train_data=train_pairs,
                 search_model=self.search_model,
-                test_data=None
+                test_data=None,
+                y_data=y_data
             )
             self.trained_reg_model = trained_reg_model
-            self.Y_values.Y_pa_c1_nume = list(train_pairs[:, 0])
+            self.Y_values.Y_pa_c1_nume = self.Y_values.Y_pa_c1_true
 
         if self.ML_cls is not None:
             logging.info("Training classification model on sign of Y...")
@@ -93,14 +99,19 @@ class PairwiseModel():
 
     def rank(self, ranking_method, ranking_input_type, if_sbbr_dist=False):
         """ranking_inputs: sub-list of ['c2', 'c3', 'c2_c3', 'c1_c2_c3']"""
-        assert self.trained_cls_model is not None
+        # assert self.trained_cls_model is not None
 
         combi_types = ranking_input_type.split("_")
         Y, test_pair_ids = [], []
         for pair_type in combi_types:
 
             if not if_sbbr_dist:
-                Y += list(getattr(self.Y_values, f"Y_pa_{pair_type}_sign"))
+                if self.trained_cls_model is None:
+                    Y += list(
+                        np.sign(getattr(self.Y_values, f"Y_pa_{pair_type}_nume"))
+                    )
+                else:
+                    Y += list(getattr(self.Y_values, f"Y_pa_{pair_type}_sign"))
             else:
                 assert self.trained_reg_model is not None
                 Y += list(
@@ -155,16 +166,28 @@ class PairwiseModel():
                 data=self.pairwise_data_info.train_test,
                 pair_ids=test_pair_id_batch
             )
-            Y_pa_true += list(test_pairs_batch[:, 0])
-            Y_pa_dist += list(self.trained_reg_model.predict(test_pairs_batch[:, 1:]))
+
+            if isinstance(test_pairs_batch, tuple):
+                # i.e. from NN model
+                test_pairs_batch, y_test_true = test_pairs_batch
+                Y_pa_true += list(y_test_true[:, 0])
+                Y_pa_dist += list(self.trained_reg_model.predict(test_pairs_batch))
+            else:
+
+                Y_pa_true += list(test_pairs_batch[:, 0])
+                Y_pa_dist += list(self.trained_reg_model.predict(test_pairs_batch[:, 1:]))
             if (test_batch + 1) * self.batch_size >= len(test_pair_ids): break
         return Y_pa_true, Y_pa_dist
 
 
-def build_ml_model(model, train_data, search_model=None, test_data=None):
-    x_train = train_data[:, 1:]
-    y_train = train_data[:, 0]
-
+def build_ml_model(model, train_data, search_model=None, test_data=None, y_data=None):
+    if y_data is None:
+        x_train = train_data[:, 1:]
+        y_train = train_data[:, 0]
+    else:
+        x_train = train_data
+        y_train = y_data
+        
     if search_model is not None:
         search_model.predict(x_train, y_train)
         model = search_model.best_estimator_

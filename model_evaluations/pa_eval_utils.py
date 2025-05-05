@@ -1,11 +1,12 @@
 import logging
+from functools import partial
 
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-from chemvae_train.fp_models import FPVAEAutoEncoder
+from chemvae_train.fp_models import FPVAEAutoEncoder, FPEncoderToDeltaY
 from model_evaluations.vae_utils import get_torch_of_eval_data
 from submodules.pairwise_formulation.evaluations.extrapolation_evaluation import ExtrapolationEvaluation
 from submodules.pairwise_formulation.pa_basics.all_pairs import pair_by_pair_id_per_feature
@@ -15,7 +16,7 @@ from submodules.pairwise_formulation.pairwise_model import PairwiseModel, build_
 
 
 def run(
-    train_test_splits_dict: dict, ML_cls=None, ML_reg=None,
+    train_test_splits_dict: dict, ML_cls=None, ML_reg=None, SA_ML_reg=None,
     percentage_of_top_samples=0.1, target_value_col_name='y', n_jobs=None,
     pairing_method=pair_by_pair_id_per_feature,
 ):
@@ -27,6 +28,7 @@ def run(
                 foldwise_data=foldwise_data,
                 ML_cls=ML_cls,
                 ML_reg=ML_reg,
+                SA_ML_reg=SA_ML_reg,
                 paring_method=pairing_method,
                 percentage_of_top_samples=percentage_of_top_samples,
                 target_value_col_name=target_value_col_name,
@@ -49,7 +51,8 @@ def run_per_dataset(
         ML_reg=None,
         percentage_of_top_samples=0.1,
         paring_method=pair_by_pair_id_per_feature,
-        target_value_col_name='y'
+        target_value_col_name='y',
+        SA_ML_reg=None,
 ) -> pd.DataFrame:
 
     train_set = foldwise_data['train_set']
@@ -74,8 +77,12 @@ def run_per_dataset(
     )
 
     # standard approach
+    if SA_ML_reg is not None:
+        model = SA_ML_reg
+    else:
+        model = ML_reg
     _, y_sa_pred = build_ml_model(
-        model=ML_reg,
+        model=model,
         train_data=pairwise_data.train_ary,
         test_data=pairwise_data.test_ary
     )
@@ -96,6 +103,7 @@ def run_per_dataset(
             pairwise_model.pairwise_data_info.test_ary[:, 0],
             y_sa_pred
         )
+
         metrics_dict["reg_metrics_sa"] = metrics_est_sa
 
     metrics_per_fold = pd.DataFrame(metrics_dict)
@@ -111,6 +119,22 @@ def results_of_pairwise_combinations(
     results_df = pd.DataFrame()
     if pairwise_model.ML_cls is not None:
         logging.info("Extrapolation performance evaluation...")
+
+        ####
+        # extrap_eval_for_cls = partial(
+        #     run_ranking_plus_extrapolation_eval,
+        #     predict_method=pairwise_model.predict_rank,
+        #     rank_method=rank_method,
+        #     if_rank_with_dist=if_rank_with_dist,
+        #     percentage_of_top_samples=percentage_of_top_samples,
+        #     pairwise_data_info=pairwise_model.pairwise_data_info
+        # )
+        # metrics_c2 = extrap_eval_for_cls(ranking_input_type="c2")
+        # results_df["rank_metrics_c2"] = metrics_c2
+        ####
+
+        # Refactor the below using the template above. REMEMBER TO TEST
+
         y_ranking_c2 = pairwise_model.predict_rank(
             ranking_method=rank_method,
             ranking_input_type="c2",
@@ -167,6 +191,37 @@ def results_of_pairwise_combinations(
             pairwise_model.pairwise_data_info.y_true_all,
         )
 
+        extrap_eval_for_reg = partial(
+            run_ranking_plus_extrapolation_eval,
+            predict_method=pairwise_model.rank,
+            rank_method=rank_method,
+            if_rank_with_dist=if_rank_with_dist,
+            percentage_of_top_samples=percentage_of_top_samples,
+            pairwise_data_info=pairwise_model.pairwise_data_info
+        )
+        metrics_reg_rank_c2 = extrap_eval_for_reg(ranking_input_type="c2")
+        results_df["reg_rank_metrics_c2"] = metrics_reg_rank_c2
+
+        metrics_reg_rank_c3 = extrap_eval_for_reg(ranking_input_type="c3")
+        results_df["reg_rank_metrics_c3"] = metrics_reg_rank_c3
+
+        metrics_reg_rank_c2_c3 = extrap_eval_for_reg(ranking_input_type="c2_c3")
+        results_df["reg_rank_metrics_c2_c3"] = metrics_reg_rank_c2_c3
+
+        metrics_reg_rank_c1_c2_c3 = extrap_eval_for_reg(ranking_input_type="c1_c2_c3")
+        results_df["reg_rank_metrics_c1_c2_c3"] = metrics_reg_rank_c1_c2_c3
+
+        metrics_reg_rank_c1_c2_c3 = extrap_eval_for_reg(ranking_input_type="c1_c2_c3")
+        results_df["reg_rank_metrics_c1_c2_c3"] = metrics_reg_rank_c1_c2_c3
+
+        metrics_reg_rank_y_est = ExtrapolationEvaluation(
+            percentage_of_top_samples=percentage_of_top_samples,
+            y_train_with_predicted_test=y_est,
+            pairwise_data_info=pairwise_model.pairwise_data_info,
+        ).run_extrapolation_evaluation()
+        results_df["reg_rank_metrics_y_est"] = metrics_reg_rank_y_est
+
+
         metrics_est = metrics_evaluation(
             pairwise_model.pairwise_data_info.test_ary[:, 0],
             y_est
@@ -175,6 +230,24 @@ def results_of_pairwise_combinations(
         results_df = pd.concat([results_df, metrics_est], axis=1)
 
     return results_df
+
+def run_ranking_plus_extrapolation_eval(
+        predict_method,
+        rank_method, ranking_input_type, if_rank_with_dist,
+        percentage_of_top_samples, pairwise_data_info
+):
+    y_ranking = predict_method(
+        ranking_method=rank_method,
+        ranking_input_type=ranking_input_type,
+        if_sbbr_dist=if_rank_with_dist,
+    )
+
+    metrics = ExtrapolationEvaluation(
+        percentage_of_top_samples=percentage_of_top_samples,
+        y_train_with_predicted_test=y_ranking,
+        pairwise_data_info=pairwise_data_info,
+    ).run_extrapolation_evaluation()
+    return metrics
 
 
 def metrics_evaluation(y_true, y_predict):
@@ -305,5 +378,60 @@ class LatentRepViaFPVAE:
 
 
 
-
-
+#
+#
+# class ChemblToDeltaYNN:
+#
+#     def __init__(self, fp_oneway_model: FPEncoderToDeltaY):
+#         self.fp_oneway_model = fp_oneway_model
+#         self.fp_oneway_model.eval()
+#
+#     def pairing_for_oneway_model(self, data_all, pair_ids):
+#         """
+#          Create the relevant latent representation for the pair_ids from the data_all.
+#
+#          :param data_all: np.array of shape (n_samples, 1 + n_features). n_features should be 1024.
+#          :param pair_ids: list of tuples, each tuple containing two integers linking to the row indices of data_all.
+#          :return: np.array of latent representations of shape (n_samples, n_latent_features=params.hidden_dim).
+#          """
+#
+#         # Chunk the data to avoid memory issues
+#         chunk_size = 5000
+#         n_chunks = int(len(pair_ids) / chunk_size) + 1
+#
+#         y_diff_all = []
+#         latent_reps = []
+#         for chunk in range(n_chunks):
+#             start_idx = chunk * chunk_size
+#             end_idx = min((chunk + 1) * chunk_size, len(pair_ids))
+#             if start_idx == end_idx:
+#                 break
+#             pair_ids_chunk = pair_ids[start_idx:end_idx]
+#
+#             # For each pair in pair_ids_chunk,
+#             # 1. get the individual two rows from data_all,
+#             # 2. keep the differences in Y values (i.e. row_a[0] - row_b[0]) in a new list.
+#             # 3. stack the two vectors of features (i.e. row_a[1:] and row_b[1:]) into a new
+#             # numpy array of shape (n_features, 2)
+#             # 4. append the stacked array to a list so that it can create a numpy array of shape (n_chunk, n_features, 2)
+#             # 5. Pass the numpy array of shape (n_chunk, n_features, 2) to the autoencoder to get the latent representation
+#             # 6. Append the latent representation to a list so that it can create a numpy array of shape (n_chunk, n_latent_features)
+#
+#             y_diff = []
+#             stacked_features = []
+#             for pair in pair_ids_chunk:
+#                 row_a_idx = pair[0]
+#                 row_b_idx = pair[1]
+#
+#                 row_a = data_all[row_a_idx]
+#                 row_b = data_all[row_b_idx]
+#
+#                 y_diff.append(row_a[0] - row_b[0])
+#
+#                 features = np.stack([row_a[1:], row_b[1:]], axis=1)
+#                 stacked_features.append(features)
+#
+#             stacked_features = np.array(stacked_features)
+#     def compute_delta_y(self, data_all, pair_ids):
+#
+#
