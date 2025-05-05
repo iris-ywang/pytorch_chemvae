@@ -141,9 +141,11 @@ class ChEMBLToDeltaYNN:
         return self
 
     def predict(self, X):
-        oneway_model = self.model
-        X_test_torch = get_torch_of_eval_data(X)
+        device = next(self.model.parameters()).device  # Automatically get model's device
+        oneway_model = self.model.to(device)
+        X_test_torch = get_torch_of_eval_data(X).to(device)
 
         oneway_model.eval()
-        Y_pred = oneway_model(X_test_torch)
+        with torch.no_grad():
+            Y_pred = oneway_model(X_test_torch)
         return Y_pred[:, 0].tolist()
