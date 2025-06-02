@@ -49,7 +49,11 @@ class PairwiseModel():
                 y_data=y_data
             )
             self.trained_reg_model = trained_reg_model
-            self.Y_values.Y_pa_c1_nume = self.Y_values.Y_pa_c1_true
+
+            logging.info("Getting predictions for training set for training errors...")
+            X_train = self.trained_reg_model.Xy_train.tensors[0].numpy()
+            Y_train_pred = list(self.trained_reg_model.predict(X_train))
+            self.Y_values.Y_pa_c1_nume = Y_train_pred
 
         if self.ML_cls is not None:
             logging.info("Training classification model on sign of Y...")

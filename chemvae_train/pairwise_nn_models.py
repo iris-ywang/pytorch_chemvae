@@ -25,6 +25,7 @@ class ChEMBLToDeltaYNN:
         self.params = params
         self.optimizer = None
         self.model = None
+        self.Xy_train = None
         logger = logging_set_up()  # check
 
     @staticmethod
@@ -138,14 +139,51 @@ class ChEMBLToDeltaYNN:
 
         self.model = oneway_model # TODO: can be replaced
         self.optimizer = optimizer  # TODO: can be replaced
+        self.Xy_train = Xy_train
         return self
 
     def predict(self, X):
         device = next(self.model.parameters()).device  # Automatically get model's device
         oneway_model = self.model.to(device)
         X_test_torch = get_torch_of_eval_data(X).to(device)
-
+        # self.check_if_test_tensor_contains_training_tensor(self.Xy_train.tensors[0], X)
         oneway_model.eval()
         with torch.no_grad():
             Y_pred = oneway_model(X_test_torch)
         return Y_pred[:, 0].tolist()
+
+    @staticmethod
+    def check_if_test_tensor_contains_training_tensor(train_tensor: TensorDataset, test_array: np.array):
+        """train_tensor and test_tensor will both be in shape of (n_samples, 1024, 2).
+        For each item in test_tensor, check if it is in train_tensor. if so, print
+        the index of the item in test_tensor. """
+
+        train_array = train_tensor.numpy()
+        doggy_list = []
+        for j in range(len(test_array)):
+            test_j = test_array[j]
+            for i in range(len(train_array)):
+                if (test_j == train_array[i]).all():
+                    # print(f"Item {j} in test tensor is found in training tensor.")
+                    # print the index of the item in train_tensor
+                    index = np.where(train_array == test_j)[0][0]
+                    print(f"Item {j} in test tensor is found in training tensor at index {index, i}.")
+                    doggy_list.append((j, i))
+        if doggy_list:
+            input(f"Found {len(doggy_list)} matching items between train and test tensors: {doggy_list}.")
+
+            # train_idx = find_matching_index(train_array, test_j)
+            # if train_idx is not None:
+            #     doggy_list.append(train_idx)
+            #     input(train_idx)
+
+def find_matching_index(a1, a2):
+    """ Check if the second array exists in the first array and return the index.
+:param a1: numpy array of shape (x, 1024, 2)
+:param a2: numpy array of shape (1024, 2)
+:return: Index i (0 <= i < x) if a2 exists in a1, otherwise None
+"""
+    for i in range(a1.shape[0]):
+        if np.array_equal(a1[i], a2):
+            return i
+    return None

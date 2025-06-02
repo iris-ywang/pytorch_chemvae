@@ -183,6 +183,32 @@ def results_of_pairwise_combinations(
     if pairwise_model.ML_reg is not None:
         logging.info("Pairwise regressive performance evaluation...")
         pairwise_model.predict()
+        logging.info("Getting predictions for training set for training errors (2nd times)...")
+        X_train = pairwise_model.trained_reg_model.Xy_train.tensors[0].numpy()
+        Y_train_pred = list(pairwise_model.trained_reg_model.predict(X_train))
+
+        logging.info("Quick evaluation on training and test errors on Y...")
+        mse_train = mean_squared_error(pairwise_model.Y_values.Y_pa_c1_true, Y_train_pred)
+        mse_train2 = mean_squared_error(pairwise_model.Y_values.Y_pa_c1_true, pairwise_model.Y_values.Y_pa_c1_nume)
+        mse_test2 = mean_squared_error(pairwise_model.Y_values.Y_pa_c2_nume_true, pairwise_model.Y_values.Y_pa_c2_nume)
+        mse_test3 = mean_squared_error(pairwise_model.Y_values.Y_pa_c3_nume_true, pairwise_model.Y_values.Y_pa_c3_nume)
+        logging.info("Training MSE: %.4f (back up: %.4f), Test C2 MSE: %.4f, Test C3 MSE: %.4f" % (
+            mse_train, mse_train2, mse_test2, mse_test3
+        ))
+        results_df["mse_train1_train2_test2_test3"] = [mse_train, mse_train2, mse_test2, mse_test3]
+
+        y_train_est = estimate_y_from_averaging(
+            pairwise_model.Y_values.Y_pa_c1_nume,
+            pairwise_model.pairwise_data_info.c1_test_pair_ids,
+            pairwise_model.pairwise_data_info.train_ids,
+            pairwise_model.pairwise_data_info.y_true_all,
+        )
+        metrics_train_est = metrics_evaluation(
+            pairwise_model.pairwise_data_info.train_ary[:, 0],
+            y_train_est
+        )
+        metrics_train_est.name = "reg_metrics_train"
+        results_df = pd.concat([results_df, metrics_train_est], axis=1)
 
         y_est = estimate_y_from_averaging(
             pairwise_model.Y_values.Y_pa_c2_nume,
