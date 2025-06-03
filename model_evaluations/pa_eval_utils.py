@@ -36,6 +36,7 @@ def run(
             metrics_per_fold["fold_id"] = fold_id
             logging.info(f"Metrics for fold {fold_id}: \n {metrics_per_fold.to_string()}")
             metrics_per_dataset.append(metrics_per_fold)
+            metrics_per_fold.to_csv("temp_res_ok_to_delete.csv")
 
         all_metrics = pd.concat(metrics_per_dataset)
         mean_metrics = all_metrics.drop(columns=["fold_id"]).groupby(all_metrics.index).mean(numeric_only=True)

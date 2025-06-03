@@ -21,11 +21,12 @@ from utils.utils import logging_set_up
 
 class ChEMBLToDeltaYNN:
 
-    def __init__(self, params: ChemVAETrainingParams):
+    def __init__(self, params: ChemVAETrainingParams, if_retrain: bool = False):
         self.params = params
         self.optimizer = None
         self.model = None
         self.Xy_train = None
+        self.if_retrain = if_retrain
         logger = logging_set_up()  # check
 
     @staticmethod
@@ -40,6 +41,12 @@ class ChEMBLToDeltaYNN:
         return X, Y
 
     def fit(self, X, y):
+        if not self.if_retrain:
+            print("Clean-fitting the model.")
+            self.model = None
+            self.optimizer = None
+            self.Xy_train = None
+
         if torch.cuda.is_available():
             world_size = torch.cuda.device_count()
             logging.info(f"World size: {world_size}. Training with Torchrun.")
@@ -52,8 +59,16 @@ class ChEMBLToDeltaYNN:
             # Load the model trained by rank 0
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             self.model = load_model(self.params).to(device)
-            self.model.load_state_dict(torch.load("_trained_model_temp_file.pt", map_location=device))
+            self.model.load_state_dict(torch.load("_trained_model_temp_file.pt"))
 
+            self.optimizer = load_optimiser(self.params)(self.model.parameters())
+            self.optimizer.load_state_dict(torch.load("_trained_optimizer_temp_file.pt"))
+
+            self.Xy_train = torch.load("_trained_Xy_train_temp_file.pt")
+
+            os.remove("_trained_model_temp_file.pt")
+            os.remove("_trained_optimizer_temp_file.pt")
+            os.remove("_trained_Xy_train_temp_file.pt")
         else:
             logging.info("No GPU available. Using CPU.")
             self.train(X, y)
@@ -64,6 +79,8 @@ class ChEMBLToDeltaYNN:
         self.train(X, y, gpu_id=rank)
         if rank == 0:
             torch.save(self.model.state_dict(), "_trained_model_temp_file.pt")
+            torch.save(self.optimizer.state_dict(), "_trained_optimizer_temp_file.pt")
+            torch.save(self.Xy_train, "_trained_Xy_train_temp_file.pt")
         destroy_process_group()
         return self
 

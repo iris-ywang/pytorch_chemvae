@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.linear_model import LinearRegression
@@ -70,8 +71,10 @@ def run_eval(
 
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
+
     logging.basicConfig(
         level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
     )
     logging.info("Logging started.")
-    run_eval("./trained_models/chembl204/exp_oneway.json", 100)
+    run_eval("./trained_models/chembl204/exp_oneway.json", 300)

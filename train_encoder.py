@@ -63,7 +63,7 @@ def load_model(params: ChemVAETrainingParams, evaluating=False):
         # autoencoder_model.load_state_dict(torch.load(weights_path, map_location=torch.device('cpu')))
         model.load_state_dict(torch.load(weights_path))
     else:
-        logging.info("Initializing a new set of model weights...")
+        print("Initializing a new set of model weights...")
     return model
 
 
