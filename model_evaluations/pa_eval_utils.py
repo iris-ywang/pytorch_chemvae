@@ -196,7 +196,8 @@ def results_of_pairwise_combinations(
         logging.info("Training MSE: %.4f (back up: %.4f), Test C2 MSE: %.4f, Test C3 MSE: %.4f" % (
             mse_train, mse_train2, mse_test2, mse_test3
         ))
-        results_df["mse_train1_train2_test2_test3"] = [mse_train, mse_train2, mse_test2, mse_test3]
+        metrics_train_mse = pd.Series([mse_train, mse_train2, mse_test2, mse_test3], index=[0, 1, 2, 3],
+                                      name='mse_train1_train2_test2_test3')
 
         y_train_est = estimate_y_from_averaging(
             pairwise_model.Y_values.Y_pa_c1_nume,
@@ -209,7 +210,6 @@ def results_of_pairwise_combinations(
             y_train_est
         )
         metrics_train_est.name = "reg_metrics_train"
-        results_df = pd.concat([results_df, metrics_train_est], axis=1)
 
         y_est = estimate_y_from_averaging(
             pairwise_model.Y_values.Y_pa_c2_nume,
@@ -255,6 +255,8 @@ def results_of_pairwise_combinations(
         )
         metrics_est.name = "reg_metrics_c2"
         results_df = pd.concat([results_df, metrics_est], axis=1)
+        results_df = pd.concat([results_df, metrics_train_mse], axis=1)
+        results_df = pd.concat([results_df, metrics_train_est], axis=1)
 
     return results_df
 
