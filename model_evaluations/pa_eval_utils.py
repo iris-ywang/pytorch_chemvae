@@ -107,6 +107,13 @@ def run_per_dataset(
 
         metrics_dict["reg_metrics_sa"] = metrics_est_sa
 
+        metrics_rank_sa = ExtrapolationEvaluation(
+            percentage_of_top_samples=percentage_of_top_samples,
+            y_train_with_predicted_test=y_sa_pred_w_train,
+            pairwise_data_info=pairwise_model.pairwise_data_info,
+        ).run_extrapolation_evaluation()
+        metrics_dict["reg_rank_metrics_sa"] = metrics_rank_sa
+
     metrics_per_fold = pd.DataFrame(metrics_dict)
     return metrics_per_fold
 
