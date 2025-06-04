@@ -77,4 +77,4 @@ if __name__ == "__main__":
         level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
     )
     logging.info("Logging started.")
-    run_eval("./trained_models/chembl204/exp_oneway.json", 300)
+    run_eval("./trained_models/chembl4016/exp_oneway.json", 50)
