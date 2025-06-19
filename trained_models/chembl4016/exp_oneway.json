@@ -2,7 +2,7 @@
   "name": "chembl4016",
   "data_width": 1024,
   "data_file": "./trained_models/chembl4016/data_CHEMBL4016.csv",
-  "vae_weights_file": "./trained_models/chembl4016/chem4016_nn1.pth",
+  "vae_weights_file": "./trained_models/chembl4016/chem4016_nn2.pth",
   "test_idx_file": "./trained_models/chembl4016/test_idx.npy",
 
   "checkpoint_path": "./",
