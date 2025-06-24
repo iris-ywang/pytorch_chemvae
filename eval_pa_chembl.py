@@ -76,8 +76,8 @@ def run_eval_in_batch(list_of_chembl_file_path: list, eval_size: int = 100):
 
     #################### CHECK
     fp_siamese_depth = 2
-    fp_concat_depth = 3
-    fp_n_activity_layers = 3
+    fp_concat_depth = 2
+    fp_n_activity_layers = 2
     fp_activity_layer_size_scalar = 1.0
     fp_hidden_dim_reduction_rate = 0.5
     fp_loss_weight = 10.0
@@ -144,7 +144,7 @@ def run_eval_in_batch(list_of_chembl_file_path: list, eval_size: int = 100):
         metrics_per_dataset['eval_size'] = eval_size
         metrics_all = pd.concat([metrics_all, metrics_per_dataset], ignore_index=True)
 
-    metrics_all.to_csv(f"chembl_oneway_metrics_batch_eval_size_{eval_size}.csv", index=False)
+        metrics_all.to_csv(f"chembl_oneway_metrics_batch_eval_size_{eval_size}.csv", index=False)
 
 
 if __name__ == "__main__":
