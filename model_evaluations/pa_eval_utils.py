@@ -10,7 +10,7 @@ from chemvae_train.fp_models import FPVAEAutoEncoder, FPEncoderToDeltaY
 from model_evaluations.vae_utils import get_torch_of_eval_data
 from submodules.pairwise_formulation.evaluations.extrapolation_evaluation import ExtrapolationEvaluation
 from submodules.pairwise_formulation.pa_basics.all_pairs import pair_by_pair_id_per_feature
-from submodules.pairwise_formulation.pa_basics.rating import rating_trueskill
+from submodules.pairwise_formulation.pa_basics.rating import rating_trueskill, rating_sbbr
 from submodules.pairwise_formulation.pairwise_data import PairwiseDataInfo
 from submodules.pairwise_formulation.pairwise_model import PairwiseModel, build_ml_model
 
@@ -73,7 +73,7 @@ def run_per_dataset(
     metrics_dict = results_of_pairwise_combinations(
         pairwise_model=pairwise_model,
         if_rank_with_dist=False,
-        rank_method=rating_trueskill,
+        rank_method=rating_sbbr,  # choose ranking method
         percentage_of_top_samples=percentage_of_top_samples,
     )
 

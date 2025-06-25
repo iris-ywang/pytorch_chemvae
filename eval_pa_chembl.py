@@ -140,11 +140,14 @@ def run_eval_in_batch(list_of_chembl_file_path: list, eval_size: int = 100):
         training_params = ChemVAETrainingParams(**params)
 
         metrics_per_dataset = main(training_params, eval_size)
+        # set the name of index of metrics_per_dataset to "metrics"
+        metrics_per_dataset = metrics_per_dataset.rename_axis("metrics").reset_index()
+
         metrics_per_dataset['dataset'] = chembl_name
         metrics_per_dataset['eval_size'] = eval_size
-        metrics_all = pd.concat([metrics_all, metrics_per_dataset], ignore_index=True)
+        metrics_all = pd.concat([metrics_all, metrics_per_dataset.reset_index()], ignore_index=True)
 
-        metrics_all.to_csv(f"chembl_oneway_metrics_batch_eval_size_{eval_size}.csv", index=False)
+        metrics_all.to_csv(f"chembl_oneway_metrics_batch_eval_size_{eval_size}_sbbr.csv", index=False)
 
 
 if __name__ == "__main__":
@@ -168,5 +171,5 @@ if __name__ == "__main__":
     list_of_data_file = [root_dir + fr'{file_name}' for file_name in large_chembles]
 
     run_eval_in_batch(
-        list_of_data_file, eval_size=100
+        list_of_data_file, eval_size=200
     )
