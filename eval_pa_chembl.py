@@ -11,6 +11,7 @@ from chemvae_train.load_params import ChemVAETrainingParams, load_params
 from chemvae_train.pairwise_nn_models import ChEMBLToDeltaYNN
 from model_evaluations.pa_eval_utils import LatentRepViaFPVAE, run
 from submodules.pairwise_formulation.pa_basics.import_data import kfold_splits
+from submodules.pairwise_formulation.pa_basics.all_pairs import pair_by_pair_id_per_feature
 from train_vae import load_model
 
 
@@ -28,15 +29,17 @@ def main(params: ChemVAETrainingParams, n_qsar_test_size=None):
 
     # Prepare pairs
     train_test_splits_dict = kfold_splits(train_test=train_test, fold=3)
-    pairing_method = ChEMBLToDeltaYNN.make_pairs_from_all_data_and_pair_ids
-
+    # pairing_method = ChEMBLToDeltaYNN.make_pairs_from_all_data_and_pair_ids
     metrics_per_dataset, all_metrics = run(
         train_test_splits_dict=train_test_splits_dict,
         SA_ML_reg=RandomForestRegressor(random_state=1, n_jobs=-1),  # for predecessor comparison
         # ML_reg=LinearRegression(),  # for debugging purpose only
-        ML_reg=ChEMBLToDeltaYNN(params),
-        # ML_cls=RandomForestClassifier(random_state=1, n_jobs=-1),
-        pairing_method=pairing_method,
+
+        # ML_reg=ChEMBLToDeltaYNN(params),
+        # pairing_method=pairing_method,
+
+        ML_cls=RandomForestClassifier(random_state=1, n_jobs=-1),
+
         percentage_of_top_samples=0.1,  # top-performing as in top 10%
     )
     return metrics_per_dataset
@@ -81,7 +84,7 @@ def run_eval_in_batch(list_of_chembl_file_path: list, eval_size: int = 100):
     fp_activity_layer_size_scalar = 1.0
     fp_hidden_dim_reduction_rate = 0.5
     fp_loss_weight = 10.0
-    epochs = 35
+    epochs = 70
 
     hidden_dim = 392
     save_model_per_epoch = False
@@ -147,7 +150,7 @@ def run_eval_in_batch(list_of_chembl_file_path: list, eval_size: int = 100):
         metrics_per_dataset['eval_size'] = eval_size
         metrics_all = pd.concat([metrics_all, metrics_per_dataset.reset_index()], ignore_index=True)
 
-        metrics_all.to_csv(f"chembl_oneway_metrics_batch_eval_size_{eval_size}_sbbr.csv", index=False)
+        metrics_all.to_csv(f"chembl_pa_metrics_batch_eval_size_{eval_size}_ts.csv", index=False)
 
 
 if __name__ == "__main__":

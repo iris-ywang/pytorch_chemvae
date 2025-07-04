@@ -73,7 +73,7 @@ def run_per_dataset(
     metrics_dict = results_of_pairwise_combinations(
         pairwise_model=pairwise_model,
         if_rank_with_dist=False,
-        rank_method=rating_sbbr,  # choose ranking method
+        rank_method=rating_trueskill,  # choose ranking method
         percentage_of_top_samples=percentage_of_top_samples,
     )
 
